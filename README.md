@@ -1,8 +1,8 @@
-# PacTerm - Terminal Pac-Man
+# PacTerm - Terminal Pac-Man V1.1.3
 
 A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, avoid ghosts, and chase high scores in your terminal.
 
-![PacTerm Demo](docs/demo.gif)
+- **Website**: [https://wael.work.gd/pacterm](https://wael.work.gd/pacterm)
 
 ## Features
 
@@ -12,7 +12,12 @@ A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, 
 - **High Score System**: Persistent high scores saved locally
 - **Sound Effects**: Optional terminal bell sounds for actions
 - **Multiple Levels**: Progressive difficulty with increasing ghost speed
-- **Responsive Controls**: Smooth keyboard controls (WASD/Arrow keys)
+- **Responsive Controls**: Smooth keyboard controls (WASD/ZSQD/Arrow keys)
+
+## Install Compiled Binary for Arch Linux
+```bash
+yay -S pacterm-bin
+```
 
 ## Requirements
 
@@ -65,11 +70,11 @@ sudo cp pacterm /usr/local/bin/
 # Run the game
 ./pacterm
 
-# Run with sound enabled
-./pacterm --sound
+# Run with automatic install to PATH (for Linux and MacOS)
+./pacterm install
 
-# Show help
-./pacterm --help
+# Unistall the game from PATH (for Linux and MacOS)
+./pacterm delete
 ```
 
 ### Controls
@@ -221,11 +226,11 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/pacterm/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/pacterm/discussions)
+- **Issues**: [GitHub Issues](https://github.com/wa-el-az/pacterm/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/wa-el-az/pacterm/discussions)
 
 ---
 
 <p align="center">
-  Made with ❤️ for terminal gaming enthusiasts
+  Made with ❤️ for terminal retro gamers
 </p>
