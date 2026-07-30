@@ -1,0 +1,10 @@
+# pacterm keybindings configuration
+# Format: ACTION=key1,key2,...
+# Supported actions: UP, DOWN, LEFT, RIGHT, PAUSE
+# Special keys: ARROW_UP, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, SPACE, ESC
+
+UP=w,z,k,ARROW_UP
+DOWN=s,j,ARROW_DOWN
+LEFT=a,q,h,ARROW_LEFT
+RIGHT=d,l,ARROW_RIGHT
+PAUSE=p,m,SPACE

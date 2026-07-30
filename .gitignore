@@ -1,0 +1,83 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+bin/
+obj/
+
+# Compiled objects and executables
+*.o
+*.obj
+*.exe
+*.out
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+pacterm
+pactermbak
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+*.cmake
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.clang-format
+.clang-tidy
+compile_commands.json
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Package managers
+conan/
+vcpkg/
+packages/
+
+# Test outputs
+*.gcda
+*.gcno
+*.gcov
+coverage/
+*.profraw
+*.profdata
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+cache/
+*.cache
+
+# Sound cache
+.pacterm_sound/
+*.wav
+*.ogg
+*.mp3
+
+# High scores
+.pacterm_scores
+
+# Distribution
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+*.msi
