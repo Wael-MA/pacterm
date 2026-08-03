@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.1.0
+// pacterm v1.3.1
 #pragma once
 
 #include "Types.hpp"
@@ -98,9 +98,13 @@ private:
     int mouse_y_ = 0;
     int mouse_button_ = 0;
     bool mouse_press_ = false;
+    bool mouse_hover_active_ = false;  // set on mouse motion, cleared on keyboard
     static bool signal_term_restored_;
     static struct termios signal_original_termios_;
     static void signalHandler(int sig);
+    static void signalContHandler(int sig);
+    static void restoreTerminalForSignal();
+    static void installSignals();
     
     // Double buffered rendering buffers
     int render_width_ = 0;
@@ -117,6 +121,7 @@ private:
     int readKey();
     void handleInput(int key);
     void handleMouseClick();
+    bool isMouseHovering(int row, int col, const std::string& text) const;
     
     void update(int delta_ms);
     void render();
@@ -156,7 +161,9 @@ private:
     // Renderer double buffering
     void initRenderer();
     void setCell(int row, int col, const Cell& cell);
-    void drawString(int row, int col, const std::string& text, Color fg, Color bg = {0,0,0});
+    void fillRow(int row, Color fg, Color bg);
+    static size_t utf8SequenceLength(unsigned char c) noexcept;
+    void drawString(int row, int col, const std::string& text, Color fg, Color bg = {0,0,0}, bool bold = false);
     void drawGradientString(int row, int col, const std::string& text, Color start_fg, Color end_fg, Color bg = {0,0,0});
     void drawBox(int row, int col, int w, int h, Color fg, Color bg = {0,0,0});
     void drawDoubleBorderBox(int row, int col, int w, int h, Color fg, Color bg = {0,0,0});
@@ -169,10 +176,14 @@ private:
     void renderHUD();
     void renderEffects();
     void renderMainMenu();
+    void renderSettings();
+    void renderRedeem();
+    void renderStats();
     void renderGameOver();
     void renderGetReady();
     void renderDevMenu();
     void renderDevPasswordInput();
+    void activateSettingsSelection();
     void startLevel(int lvl);
 
     // High Score and Cheats/Dev Options
@@ -197,19 +208,31 @@ private:
     void renderLevelSelector();
     
     bool unlocked_rainbow_ = false;
-    bool use_rainbow_theme_ = false;
+    int selected_general_theme_ = 0; // 0 = Classic, 1 = Cyan, 2 = Green, 3 = Pink, 4 = Red, 5 = Rainbow
+    int settings_selection_ = 0;
+    bool apply_menu_theme_ = false;
     std::string username_ = "Wael";
     std::string input_username_ = "";
+    std::string redeem_input_ = "";
+    std::string redeem_result_ = "";
+    bool redeem_result_valid_ = false;
+    int games_played_ = 0;
+    int dots_eaten_ = 0;
+    int ghosts_eaten_ = 0;
+    int deaths_ = 0;
+    int power_pellets_ = 0;
+    int time_played_ms_ = 0;
     Color getRainbowColor(double offset) const;
+    Color applyGeneralTheme(Color fg, int row, int col) const;
     bool isColorLocked(int color_idx) const;
     
-    // Projectiles and Boss HP for Level 20 Boss Fight
-    std::vector<Projectile> projectiles_;
-    int boss_hp_ = 50;
-    int glitch_teleport_timer_ = 5000;
-    int shoot_cooldown_ = 0;
-    bool glitch_warning_shown_ = false;
-    
+    // Warp Portals check for Pac-man (Theme 3 - Cyberpunk)
+    Vec2 portal_A1_ = {0, 0};
+    Vec2 portal_A2_ = {0, 0};
+    Vec2 portal_B1_ = {0, 0};
+    Vec2 portal_B2_ = {0, 0};
+    bool pac_just_warped_ = false;
+
     // Acid trails (Theme 2 - Toxic Green)
     struct AcidTrail {
         Vec2 pos;
@@ -228,13 +251,6 @@ private:
     
     // Dash (Theme 5 - Cybernetic Gold)
     int dash_cooldown_ = 0;
-    
-    // Portal positions (Theme 3 - Cyberpunk)
-    Vec2 portal_A1_ = {0, 0};
-    Vec2 portal_A2_ = {0, 0};
-    Vec2 portal_B1_ = {0, 0};
-    Vec2 portal_B2_ = {0, 0};
-    bool pac_just_warped_ = false;
     
     // Timed special item spawning
     bool special_item_active_ = false;
@@ -291,5 +307,7 @@ private:
     void playSound(const std::string& name);
     std::filesystem::path getSoundDirectory();
 
+    // Single process-wide PRNG (seeded once) replacing hidden statics & std::rand()
+    std::mt19937 rng_;
 };
 

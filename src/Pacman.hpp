@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.1.0
+// pacterm v1.3.1
 #pragma once
 
 #include "Types.hpp"

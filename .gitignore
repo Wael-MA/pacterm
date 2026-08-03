@@ -16,7 +16,6 @@ obj/
 *.a
 *.lib
 pacterm
-pactermbak
 
 # CMake files
 CMakeCache.txt
@@ -66,14 +65,10 @@ coverage/
 cache/
 *.cache
 
-# Sound cache
-.pacterm_sound/
+# Audio files
 *.wav
 *.ogg
 *.mp3
-
-# High scores
-.pacterm_scores
 
 # Distribution
 *.tar.gz

@@ -1,4 +1,4 @@
-# PacTerm - Terminal Pac-Man V1.1.3
+# PacTerm - Terminal Pac-Man V1.3.1
 
 A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, avoid ghosts, and chase high scores in your terminal.
 
@@ -151,12 +151,14 @@ pacterm/
 │   ├── GameEngine.cpp  # Game engine implementation
 │   ├── GameEngine.hpp  # Game engine header
 │   ├── Pacman.hpp      # Pac-Man entity
-│   ├── Ghost.hpp       # Ghost entity
-│   ├── Ghost.hpp       # Ghost types & AI
+│   ├── Ghost.hpp       # Ghost entity & AI
 │   └── Types.hpp       # Shared types & constants
-├── sounds/             # Sound files (optional)
-└── .pacterm_sound/     # Sound cache directory
+└── sounds/             # Source sound files (optional)
 ```
+
+Runtime data is stored under `~/.pacterm/`:
+- `pacterm.cache` — scores, settings, stats
+- `sounds/` — generated sound effects (fallback to terminal bell)
 
 ## Configuration
 
@@ -174,7 +176,7 @@ SOUND=m
 
 ## High Scores
 
-High scores are saved to `~/.pacterm_scores` automatically.
+Scores, settings, and stats are saved to `~/.pacterm/pacterm.cache` automatically.
 
 ## Building for Distribution
 

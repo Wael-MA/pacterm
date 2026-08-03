@@ -14,4 +14,4 @@ $(TARGET): $(OBJ)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJ) $(TARGET) pactermbak
+	rm -f $(OBJ) $(TARGET)
