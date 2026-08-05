@@ -57,6 +57,7 @@ public:
     void run();
     static bool install_bin(bool cli_mode = false);
     static bool delete_bin(bool cli_mode = false);
+    static std::filesystem::path localBinPath();
     bool isInstalledLocally() const;
     
 private:
@@ -203,12 +204,12 @@ private:
     
     // Campaign, Level Selector & Theme Mechanics
     int max_unlocked_level_ = 1;
-    int selected_pacman_color_ = 0; // 0 = Yellow, 1 = Cyan, 2 = Green, 3 = Pink, 4 = Red, 5 = Rainbow
+    int selected_pacman_color_ = 0; // 0 = Classic Yellow, 1 = Cyan, 2 = Green, 3 = Pink, 4 = Red, 5 = Violet, 6 = Ice, 7 = Amber, 8 = Rainbow
     int level_select_cursor_ = 0;
     void renderLevelSelector();
     
     bool unlocked_rainbow_ = false;
-    int selected_general_theme_ = 0; // 0 = Classic, 1 = Cyan, 2 = Green, 3 = Pink, 4 = Red, 5 = Rainbow
+    int selected_general_theme_ = 0; // 0 = Classic, 1 = Cyan, 2 = Green, 3 = Pink, 4 = Red, 5 = Violet, 6 = Ice, 7 = Amber, 8 = Rainbow
     int settings_selection_ = 0;
     bool apply_menu_theme_ = false;
     std::string username_ = "Wael";
@@ -225,6 +226,7 @@ private:
     Color getRainbowColor(double offset) const;
     Color applyGeneralTheme(Color fg, int row, int col) const;
     bool isColorLocked(int color_idx) const;
+    bool isGlitchZone(int x, int y) const;
     
     // Warp Portals check for Pac-man (Theme 3 - Cyberpunk)
     Vec2 portal_A1_ = {0, 0};
@@ -251,6 +253,13 @@ private:
     
     // Dash (Theme 5 - Cybernetic Gold)
     int dash_cooldown_ = 0;
+    
+    // Ghost Blitz (Theme 6 - Violet, levels 21-23)
+    int ghost_blitz_timer_ = 0;
+    int ghost_blitz_cooldown_ = 0;
+    
+    // Glacier Freeze (Theme 7 - Ice, levels 24-26)
+    int ice_freeze_cooldown_ = 0;
     
     // Timed special item spawning
     bool special_item_active_ = false;

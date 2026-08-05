@@ -1,4 +1,4 @@
-# PacTerm - Terminal Pac-Man V1.3.1
+# PacTerm - Terminal Pac-Man V1.3.2
 
 A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, avoid ghosts, and chase high scores in your terminal.
 

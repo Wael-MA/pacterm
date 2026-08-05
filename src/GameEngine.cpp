@@ -241,7 +241,7 @@ GameEngine::~GameEngine() {
             c.r = static_cast<uint8_t>(255 - ratio * 255);
             c.g = static_cast<uint8_t>(100 + ratio * 155);
             c.b = 255;
-        } else if (selected_general_theme_ == 5) {
+        } else if (selected_general_theme_ == 8) {
             c = getRainbowColor(static_cast<double>(i) * 0.15);
         } else {
             c = applyGeneralTheme({255, 255, 255}, 0, static_cast<int>(i) * 2);
@@ -468,14 +468,14 @@ void GameEngine::handleInput(int key) {
                 if (settings_selection_ == 0) { // General Theme
                     int temp = selected_general_theme_;
                     do {
-                        temp = (temp - 1 + 6) % 6;
+                        temp = (temp - 1 + 9) % 9;
                     } while (isColorLocked(temp));
                     selected_general_theme_ = temp;
                     saveHighScore();
                 } else if (settings_selection_ == 3) { // Pac-Man Theme
                     int temp = selected_pacman_color_;
                     do {
-                        temp = (temp - 1 + 6) % 6;
+                        temp = (temp - 1 + 9) % 9;
                     } while (isColorLocked(temp));
                     selected_pacman_color_ = temp;
                     saveHighScore();
@@ -484,14 +484,14 @@ void GameEngine::handleInput(int key) {
                 if (settings_selection_ == 0) { // General Theme
                     int temp = selected_general_theme_;
                     do {
-                        temp = (temp + 1) % 6;
+                        temp = (temp + 1) % 9;
                     } while (isColorLocked(temp));
                     selected_general_theme_ = temp;
                     saveHighScore();
                 } else if (settings_selection_ == 3) { // Pac-Man Theme
                     int temp = selected_pacman_color_;
                     do {
-                        temp = (temp + 1) % 6;
+                        temp = (temp + 1) % 9;
                     } while (isColorLocked(temp));
                     selected_pacman_color_ = temp;
                     saveHighScore();
@@ -510,35 +510,35 @@ void GameEngine::handleInput(int key) {
             
         case GamePhase::LevelSelector:
             if (action == GameAction::Up) {
-                if (level_select_cursor_ == 20) {
-                    level_select_cursor_ = 17; // Middle bottom of 4x5 grid
+                if (level_select_cursor_ == 30) {
+                    level_select_cursor_ = 27; // Middle bottom of 6x5 grid
                 } else if (level_select_cursor_ >= 5) {
                     level_select_cursor_ -= 5;
                 } else {
-                    level_select_cursor_ = 20; // Go to Back Button
+                    level_select_cursor_ = 30; // Go to Back Button
                 }
             } else if (action == GameAction::Down) {
-                if (level_select_cursor_ == 20) {
+                if (level_select_cursor_ == 30) {
                     level_select_cursor_ = 2;  // Go to top row grid
-                } else if (level_select_cursor_ + 5 < 20) {
+                } else if (level_select_cursor_ + 5 < 30) {
                     level_select_cursor_ += 5;
                 } else {
-                    level_select_cursor_ = 20; // Go to Back Button
+                    level_select_cursor_ = 30; // Go to Back Button
                 }
             } else if (action == GameAction::Left) {
-                if (level_select_cursor_ < 20) {
+                if (level_select_cursor_ < 30) {
                     if (level_select_cursor_ % 5 > 0) {
                         level_select_cursor_ -= 1;
                     }
                 }
             } else if (action == GameAction::Right) {
-                if (level_select_cursor_ < 20) {
+                if (level_select_cursor_ < 30) {
                     if (level_select_cursor_ % 5 < 4) {
                         level_select_cursor_ += 1;
                     }
                 }
             } else if (key == '\n' || key == '\r' || key == ' ') {
-                if (level_select_cursor_ < 20) {
+                if (level_select_cursor_ < 30) {
                     int lvl = level_select_cursor_ + 1;
                     if (lvl <= max_unlocked_level_) {
                         score_ = 0;
@@ -554,7 +554,7 @@ void GameEngine::handleInput(int key) {
                         fade_animation_.fadeIn({255, 255, 255}, 300);
                         startGetReady();
                     }
-                } else if (level_select_cursor_ == 20) {
+                } else if (level_select_cursor_ == 30) {
                     phase_ = GamePhase::MainMenu;
                     fade_animation_.fadeIn({255, 255, 255}, 300);
                 }
@@ -597,6 +597,12 @@ void GameEngine::handleInput(int key) {
                     unlocked_rainbow_ = true;
                     saveHighScore();
                     redeem_result_ = "CODE REDEEMED";
+                    redeem_result_valid_ = true;
+                } else if (code == "WAEL") {
+                    max_unlocked_level_ = 30;
+                    unlocked_rainbow_ = true;
+                    saveHighScore();
+                    redeem_result_ = "ALL LEVELS & THEMES UNLOCKED!";
                     redeem_result_valid_ = true;
                 } else {
                     redeem_result_ = "INVALID CODE";
@@ -738,13 +744,13 @@ void GameEngine::handleInput(int key) {
                 int dir = (action == GameAction::Right) ? 1 : -1;
                 switch (dev_menu_selection_) {
                     case 0: // Level ID
-                        level_ = std::clamp(level_ + dir, 1, 20);
+                        level_ = std::clamp(level_ + dir, 1, 30);
                         if (pre_dev_phase_ == GamePhase::Playing || pre_dev_phase_ == GamePhase::Paused) {
                             startLevel(level_);
                         }
                         break;
                     case 1: // Pac-Man Color
-                        selected_pacman_color_ = (selected_pacman_color_ + dir + 6) % 6;
+                        selected_pacman_color_ = (selected_pacman_color_ + dir + 9) % 9;
                         saveHighScore();
                         break;
                     case 2: // Lives
@@ -887,7 +893,7 @@ void GameEngine::handleMouseClick() {
 
             std::string nf_text = "Nerd Fonts:     " + std::string(use_nerd_fonts_ ? "ON" : "OFF");
             std::string sound_text = "Sound:          " + std::string(muted_ ? "OFF" : "ON");
-            const std::array<std::string, 6> theme_names = {"Classic Yellow", "Cyan", "Green", "Pink", "Red", "Rainbow"};
+            const std::array<std::string, 9> theme_names = {"Classic Yellow", "Cyan", "Green", "Pink", "Red", "Violet", "Ice", "Amber", "Rainbow"};
             std::string theme_text = big ? "General Theme:  " + theme_names[selected_general_theme_]
                                          : "Theme: " + theme_names[selected_general_theme_];
             std::string pm_text = "Pac-Man Theme:  " + theme_names[selected_pacman_color_];
@@ -913,11 +919,11 @@ void GameEngine::handleMouseClick() {
             break;
         }
         case GamePhase::LevelSelector: {
-            // 4x5 level grid — each label is 8 chars: "  [01]  " or "> [01] <"
-            for (int r = 0; r < 4; ++r) {
+            // 6x5 level grid — each label is 8 chars: "  [01]  " or "> [01] <"
+            for (int r = 0; r < 6; ++r) {
                 for (int c = 0; c < 5; ++c) {
                     int lvl = r * 5 + c + 1;
-                    int row = center_row - 6 + r * 2;
+                    int row = center_row - 8 + r * 2;
                     int col = center_col - 22 + c * 11;
                     if (my == row && mx >= col - 4 && mx < col + 4) {
                         if (lvl <= max_unlocked_level_) {
@@ -931,7 +937,7 @@ void GameEngine::handleMouseClick() {
                 }
             }
             // Back button
-            int row_back = center_row + 2;
+            int row_back = center_row + 4;
             std::string back_text = "  [ BACK TO MENU ]  ";
             int back_col_start = center_col - (int)back_text.length() / 2;
             if (hitText(row_back, back_col_start, back_text, my, mx)) {
@@ -1143,6 +1149,28 @@ void GameEngine::update(int delta_ms) {
                 dash_cooldown_ -= delta_ms;
             }
             
+            // Ghost Blitz (Theme 6 - Violet, levels 21-23)
+            if (ghost_blitz_timer_ > 0) {
+                ghost_blitz_timer_ -= delta_ms;
+            }
+            if (level_ >= 21 && level_ <= 23) {
+                ghost_blitz_cooldown_ -= delta_ms;
+                if (ghost_blitz_cooldown_ <= 0) {
+                    ghost_blitz_cooldown_ = 4000 + std::rand() % 3000;
+                    ghost_blitz_timer_ = 1500;
+                }
+            }
+            
+            // Glacier Freeze (Theme 7 - Ice, levels 24-26)
+            if (level_ >= 24 && level_ <= 26) {
+                ice_freeze_cooldown_ -= delta_ms;
+                if (ice_freeze_cooldown_ <= 0) {
+                    ice_freeze_cooldown_ = 7000 + std::rand() % 3000;
+                    ghost_freeze_timer_ = 1200;
+                    spawnParticleBurst(pacman_.position, {140, 230, 255});
+                }
+            }
+            
             // Update popups
             for (auto it = popups_.begin(); it != popups_.end(); ) {
                 it->lifetime_ms -= delta_ms;
@@ -1203,7 +1231,7 @@ void GameEngine::update(int delta_ms) {
                     it = lava_tiles_.erase(it);
                 }
             }
-            if (level_ >= 13 && level_ <= 16) {
+            if ((level_ >= 13 && level_ <= 16) || (level_ >= 27 && level_ <= 29)) {
                 lava_spawn_timer_ -= delta_ms;
                 if (lava_spawn_timer_ <= 0) {
                     lava_spawn_timer_ = 3000 + std::rand() % 3000;
@@ -1301,6 +1329,9 @@ void GameEngine::update(int delta_ms) {
                         interval = interval * 3 / 4; // speed up by 25%
                     }
                 }
+                if (level_ >= 21 && level_ <= 23 && ghost_blitz_timer_ > 0 && g.mode != GhostMode::Eaten) {
+                    interval = interval * 2 / 3; // speed up by 50%
+                }
                 
                 ghost_accumulators_[i] += delta_ms;
                 while (ghost_accumulators_[i] >= interval) {
@@ -1349,14 +1380,16 @@ void GameEngine::update(int delta_ms) {
         case GamePhase::LevelClear:
             phase_timer_ -= delta_ms;
             if (phase_timer_ <= 0) {
-                if (level_ == 20) {
+                if (level_ == 30) {
                     unlocked_rainbow_ = true;
                     saveHighScore();
                     phase_ = GamePhase::LevelSelector;
+                    main_menu_message_ = "Congratulations! You beat the game!";
+                    main_menu_msg_timer_ = 5000;
                 } else {
                     if (level_ + 1 > max_unlocked_level_) {
                         max_unlocked_level_ = level_ + 1;
-                        if (max_unlocked_level_ > 20) max_unlocked_level_ = 20;
+                        if (max_unlocked_level_ > 30) max_unlocked_level_ = 30;
                         saveHighScore();
                     }
                     level_++;
@@ -2172,7 +2205,7 @@ void GameEngine::renderMap() {
                 }
                 c1.glyph = g1;
                 c2.glyph = g2;
-                if (level_ == 20) {
+                if (isGlitchZone(x, y)) {
                     std::array<std::string, 6> corrupt_chars = {"?", "!", "%", "$", "&", "*"};
                     c1.glyph = corrupt_chars[(current_time_ms_ / 100 + x + y) % 6];
                     c2.glyph = " ";
@@ -2184,7 +2217,13 @@ void GameEngine::renderMap() {
                 
                 Color wall_color;
                 Color dot_color;
-                if (level_ >= 1 && level_ <= 4) {
+                if (isGlitchZone(x, y)) {
+                    uint8_t gr = (current_time_ms_ / 100 % 2 == 0) ? 255 : 50;
+                    uint8_t gg = (current_time_ms_ / 150 % 2 == 0) ? 50 : 0;
+                    uint8_t gb = (current_time_ms_ / 200 % 2 == 0) ? 255 : 0;
+                    wall_color = Color{gr, gg, gb};
+                    dot_color = Color{gb, gr, gg};
+                } else if (level_ >= 1 && level_ <= 4) {
                     wall_color = Color{0, wg, wb};
                     dot_color = Color{255, 183, 174};
                 } else if (level_ >= 5 && level_ <= 8) {
@@ -2196,12 +2235,15 @@ void GameEngine::renderMap() {
                 } else if (level_ >= 13 && level_ <= 16) {
                     wall_color = Color{wb, wg, 0};
                     dot_color = Color{255, 183, 100};
-                } else if (level_ == 20) {
-                    uint8_t gr = (current_time_ms_ / 100 % 2 == 0) ? 255 : 50;
-                    uint8_t gg = (current_time_ms_ / 150 % 2 == 0) ? 50 : 0;
-                    uint8_t gb = (current_time_ms_ / 200 % 2 == 0) ? 255 : 0;
-                    wall_color = Color{gr, gg, gb};
-                    dot_color = Color{gb, gr, gg};
+                } else if (level_ >= 21 && level_ <= 23) { // Violet
+                    wall_color = Color{wg, 0, wb};
+                    dot_color = Color{215, 180, 255};
+                } else if (level_ >= 24 && level_ <= 26) { // Ice
+                    wall_color = Color{0, static_cast<uint8_t>(235 - wg), 245};
+                    dot_color = Color{170, 235, 255};
+                } else if (level_ >= 27 && level_ <= 29) { // Amber
+                    wall_color = Color{wg, wb, 0};
+                    dot_color = Color{255, 200, 110};
                 } else {
                     wall_color = Color{wb, wb, 0};
                     dot_color = Color{255, 255, 150};
@@ -2216,7 +2258,12 @@ void GameEngine::renderMap() {
                 c2.glyph = " ";
                 
                 Color dot_color;
-                if (level_ >= 1 && level_ <= 4) {
+                if (isGlitchZone(x, y)) {
+                    uint8_t gr = (current_time_ms_ / 100 % 2 == 0) ? 255 : 50;
+                    uint8_t gg = (current_time_ms_ / 150 % 2 == 0) ? 50 : 0;
+                    uint8_t gb = (current_time_ms_ / 200 % 2 == 0) ? 255 : 0;
+                    dot_color = Color{gb, gr, gg};
+                } else if (level_ >= 1 && level_ <= 4) {
                     dot_color = Color{255, 183, 174};
                 } else if (level_ >= 5 && level_ <= 8) {
                     dot_color = Color{174, 255, 183};
@@ -2224,6 +2271,12 @@ void GameEngine::renderMap() {
                     dot_color = Color{255, 174, 255};
                 } else if (level_ >= 13 && level_ <= 16) {
                     dot_color = Color{255, 183, 100};
+                } else if (level_ >= 21 && level_ <= 23) {
+                    dot_color = Color{215, 180, 255};
+                } else if (level_ >= 24 && level_ <= 26) {
+                    dot_color = Color{170, 235, 255};
+                } else if (level_ >= 27 && level_ <= 29) {
+                    dot_color = Color{255, 200, 110};
                 } else {
                     dot_color = Color{255, 255, 150};
                 }
@@ -2236,7 +2289,12 @@ void GameEngine::renderMap() {
                 c2.glyph = " ";
                 
                 Color dot_color;
-                if (level_ >= 1 && level_ <= 4) {
+                if (isGlitchZone(x, y)) {
+                    uint8_t gr = (current_time_ms_ / 100 % 2 == 0) ? 255 : 50;
+                    uint8_t gg = (current_time_ms_ / 150 % 2 == 0) ? 50 : 0;
+                    uint8_t gb = (current_time_ms_ / 200 % 2 == 0) ? 255 : 0;
+                    dot_color = Color{gb, gr, gg};
+                } else if (level_ >= 1 && level_ <= 4) {
                     dot_color = Color{255, 183, 174};
                 } else if (level_ >= 5 && level_ <= 8) {
                     dot_color = Color{174, 255, 183};
@@ -2244,6 +2302,12 @@ void GameEngine::renderMap() {
                     dot_color = Color{255, 174, 255};
                 } else if (level_ >= 13 && level_ <= 16) {
                     dot_color = Color{255, 183, 100};
+                } else if (level_ >= 21 && level_ <= 23) {
+                    dot_color = Color{215, 180, 255};
+                } else if (level_ >= 24 && level_ <= 26) {
+                    dot_color = Color{170, 235, 255};
+                } else if (level_ >= 27 && level_ <= 29) {
+                    dot_color = Color{255, 200, 110};
                 } else {
                     dot_color = Color{255, 255, 150};
                 }
@@ -2300,11 +2364,25 @@ void GameEngine::renderEntities() {
             else if (selected_pacman_color_ == 2) pm_fg = {0, 255, 0}; // Green
             else if (selected_pacman_color_ == 3) pm_fg = {255, 100, 255}; // Pink
             else if (selected_pacman_color_ == 4) pm_fg = {255, 50, 50}; // Red
+            else if (selected_pacman_color_ == 5) pm_fg = {185, 100, 255}; // Violet
+            else if (selected_pacman_color_ == 6) pm_fg = {140, 230, 255}; // Ice
+            else if (selected_pacman_color_ == 7) pm_fg = {255, 190, 70}; // Amber
             else pm_fg = getRainbowColor(0.0); // Rainbow
+            if (isGlitchZone(pacman_.position.x, pacman_.position.y)) {
+                uint8_t gr = (current_time_ms_ / 100 % 2 == 0) ? 255 : 50;
+                uint8_t gg = (current_time_ms_ / 150 % 2 == 0) ? 50 : 0;
+                uint8_t gb = (current_time_ms_ / 200 % 2 == 0) ? 255 : 0;
+                pm_fg = Color{gr, gg, gb};
+            }
             c1.fg = pm_fg;
             c2.fg = pm_fg;
             
-            if (pacman_.animFrame() == 0 || pacman_.animFrame() == 2) {
+            if (isGlitchZone(pacman_.position.x, pacman_.position.y)) {
+                std::array<std::string, 4> glitch_glyphs = {"█", "░", "▒", "▓"};
+                if (!use_nerd_fonts_) glitch_glyphs = {"X", "#", "@", "%"};
+                c1.glyph = glitch_glyphs[(current_time_ms_ / 100) % 4];
+                c2.glyph = " ";
+            } else if (pacman_.animFrame() == 0 || pacman_.animFrame() == 2) {
                 if (use_nerd_fonts_) {
                     switch (pacman_.currentDirection) {
                         case Direction::Left:  c1.glyph = "Ɔ"; break;
@@ -2346,7 +2424,16 @@ void GameEngine::renderEntities() {
             else if (selected_pacman_color_ == 2) pm_fg = {0, 255, 0}; // Green
             else if (selected_pacman_color_ == 3) pm_fg = {255, 100, 255}; // Pink
             else if (selected_pacman_color_ == 4) pm_fg = {255, 50, 50}; // Red
+            else if (selected_pacman_color_ == 5) pm_fg = {185, 100, 255}; // Violet
+            else if (selected_pacman_color_ == 6) pm_fg = {140, 230, 255}; // Ice
+            else if (selected_pacman_color_ == 7) pm_fg = {255, 190, 70}; // Amber
             else pm_fg = getRainbowColor(0.0); // Rainbow
+            if (isGlitchZone(pacman_.position.x, pacman_.position.y)) {
+                uint8_t gr = (current_time_ms_ / 100 % 2 == 0) ? 255 : 50;
+                uint8_t gg = (current_time_ms_ / 150 % 2 == 0) ? 50 : 0;
+                uint8_t gb = (current_time_ms_ / 200 % 2 == 0) ? 255 : 0;
+                pm_fg = Color{gr, gg, gb};
+            }
             c1.fg = pm_fg;
             c2.fg = pm_fg;
             
@@ -2381,11 +2468,12 @@ void GameEngine::renderEntities() {
         const auto& g = ghosts_[i];
         if (phase_ == GamePhase::PacDying) continue;
         if (level_ == 20 && i > 0) continue;
+        if (level_ == 30 && i > 0) continue;
         
         int vx = g.position.x - vp.start_x;
         int vy = g.position.y - vp.start_y;
         
-        if (level_ == 20) {
+        if (isGlitchZone(g.position.x, g.position.y)) {
             std::array<std::string, 4> glitch_glyphs = {"█", "░", "▒", "▓"};
             if (!use_nerd_fonts_) {
                 glitch_glyphs = {"X", "#", "@", "%"};
@@ -2555,8 +2643,8 @@ void GameEngine::renderMainMenu() {
         std::string bl = use_nerd_fonts_ ? "╚" : "+";
         std::string br = use_nerd_fonts_ ? "╝" : "+";
 
-// Top border with the version framed on the right: +──...─v1.3.1─+
-        std::string ver = "v1.3.1";
+// Top border with the version framed on the right: +──...─v1.3.2─+
+        std::string ver = "v1.3.2";
         std::string ver_block = dash_ch + ver + dash_ch;
         int vb_glyphs = 0;
         for (size_t j = 0; j < ver_block.size(); ) {
@@ -2696,8 +2784,8 @@ void GameEngine::renderSettings() {
     int center_row = render_height_ / 2;
     int center_col = render_width_ / 2;
 
-    const std::array<std::string, 6> theme_names = {
-        "Classic Yellow", "Cyan", "Green", "Pink", "Red", "Rainbow"
+    const std::array<std::string, 9> theme_names = {
+        "Classic Yellow", "Cyan", "Green", "Pink", "Red", "Violet", "Ice", "Amber", "Rainbow"
     };
 
     if (render_width_ >= 66 && render_height_ >= 26) {
@@ -2779,7 +2867,7 @@ void GameEngine::activateSettingsSelection() {
         {
             int temp = selected_general_theme_;
             do {
-                temp = (temp + 1) % 6;
+                temp = (temp + 1) % 9;
             } while (isColorLocked(temp));
             selected_general_theme_ = temp;
             saveHighScore();
@@ -2797,7 +2885,7 @@ void GameEngine::activateSettingsSelection() {
         {
             int temp = selected_pacman_color_;
             do {
-                temp = (temp + 1) % 6;
+                temp = (temp + 1) % 9;
             } while (isColorLocked(temp));
             selected_pacman_color_ = temp;
             saveHighScore();
@@ -3135,12 +3223,12 @@ void GameEngine::loadHighScore() {
     deaths_ = (read_count >= 19) ? temp_deaths : 0;
     power_pellets_ = (read_count >= 19) ? temp_power : 0;
     time_played_ms_ = (read_count >= 19) ? temp_time : 0;
-    if (max_unlocked_level_ < 1 || max_unlocked_level_ > 20) max_unlocked_level_ = 1;
-    if (selected_pacman_color_ < 0 || selected_pacman_color_ > 5) selected_pacman_color_ = 0;
+    if (max_unlocked_level_ < 1 || max_unlocked_level_ > 30) max_unlocked_level_ = 1;
+    if (selected_pacman_color_ < 0 || selected_pacman_color_ > 8) selected_pacman_color_ = 0;
     if (isColorLocked(selected_pacman_color_)) {
         selected_pacman_color_ = 0;
     }
-    if (selected_general_theme_ < 0 || selected_general_theme_ > 5) selected_general_theme_ = 0;
+    if (selected_general_theme_ < 0 || selected_general_theme_ > 8) selected_general_theme_ = 0;
     if (isColorLocked(selected_general_theme_)) {
         selected_general_theme_ = 0;
     }
@@ -3232,7 +3320,7 @@ Color GameEngine::applyGeneralTheme(Color fg, int row, int col) const {
     const double PI_CONST = 3.14159265358979323846;
     const double phase = (current_time_ms_ % 5000) / 5000.0 * 2.0 * PI_CONST;
     const double offset = row * 0.08 + col * 0.04;
-    if (selected_general_theme_ == 5) return getRainbowColor(offset);
+    if (selected_general_theme_ == 8) return getRainbowColor(offset);
     switch (selected_general_theme_) {
         case 1: { // Cyan
             double g = 207.0 + std::sin(phase + offset) * 47.0;
@@ -3249,6 +3337,22 @@ Color GameEngine::applyGeneralTheme(Color fg, int row, int col) const {
             double b = 235.0 + std::cos(phase + offset) * 20.0;
             return {255, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
         }
+        case 5: { // Violet
+            double r = 160.0 + std::sin(phase + offset) * 60.0;
+            double g = 90.0 + std::cos(phase + offset) * 50.0;
+            return {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255};
+        }
+        case 6: { // Ice
+            double r = 120.0 + std::cos(phase + offset) * 40.0;
+            double g = 225.0 + std::sin(phase + offset) * 30.0;
+            return {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255};
+        }
+        case 7: { // Amber
+            double r = 255.0;
+            double g = 175.0 + std::sin(phase + offset) * 60.0;
+            double b = 50.0 + std::cos(phase + offset) * 40.0;
+            return {static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
+        }
         default: { // Red
             double g = 70.0 + std::sin(phase + offset) * 50.0;
             double b = 60.0 + std::cos(phase + offset) * 50.0;
@@ -3263,7 +3367,18 @@ bool GameEngine::isColorLocked(int color_idx) const {
     if (color_idx == 2) return (max_unlocked_level_ <= 8);
     if (color_idx == 3) return (max_unlocked_level_ <= 12);
     if (color_idx == 4) return (max_unlocked_level_ <= 16);
-    if (color_idx == 5) return !unlocked_rainbow_;
+    if (color_idx == 5) return (max_unlocked_level_ <= 20);   // Violet
+    if (color_idx == 6) return (max_unlocked_level_ <= 23);   // Ice
+    if (color_idx == 7) return (max_unlocked_level_ <= 26);   // Amber
+    if (color_idx == 8) return !unlocked_rainbow_;            // Rainbow (last)
+    return false;
+}
+
+// Level 20 is split: left half normal, right half glitched. Level 30 is fully glitched.
+bool GameEngine::isGlitchZone(int x, int y) const {
+    (void)y;
+    if (level_ == 30) return true;
+    if (level_ == 20) return x >= 14;
     return false;
 }
 
@@ -3285,6 +3400,9 @@ void GameEngine::startLevel(int lvl) {
     acid_trails_.clear();
     lava_tiles_.clear();
     dash_cooldown_ = 0;
+    ghost_blitz_timer_ = 0;
+    ghost_blitz_cooldown_ = 0;
+    ice_freeze_cooldown_ = 0;
     
     // Setup Cyber Portals (Theme 3 - Levels 9-12)
     portal_A1_ = {0, 0};
@@ -3489,7 +3607,7 @@ void GameEngine::renderScreensaver() {
     int pm_frame = (int)(screensaver_x_ * 1.5) % 2;
     Cell pm_cell;
     pm_cell.bg = {0, 0, 0};
-    pm_cell.fg = (selected_general_theme_ == 5) ? getRainbowColor(screensaver_x_ * 0.05) : Color{255, 255, 0};
+    pm_cell.fg = (selected_general_theme_ == 8) ? getRainbowColor(screensaver_x_ * 0.05) : Color{255, 255, 0};
     if (pm_frame == 0) {
         pm_cell.glyph = use_nerd_fonts_ ? (screensaver_dir_ == 1 ? "C" : "Ɔ") : (screensaver_dir_ == 1 ? "<" : ">");
     } else {
@@ -3629,14 +3747,14 @@ void GameEngine::renderLevelSelector() {
     int center_col = render_width_ / 2;
     
     // Draw box outline
-    drawDoubleBorderBox(center_row - 8, center_col - 30, 60, 13, {0, 255, 255}, {0, 0, 0});
-    drawString(center_row - 8, center_col - 7, " SELECT LEVEL ", {255, 255, 0});
+    drawDoubleBorderBox(center_row - 10, center_col - 30, 60, 17, {0, 255, 255}, {0, 0, 0});
+    drawString(center_row - 10, center_col - 7, " SELECT LEVEL ", {255, 255, 0});
     
-    // Render 4x5 grid for 20 levels
-    for (int r = 0; r < 4; ++r) {
+    // Render 6x5 grid for 30 levels
+    for (int r = 0; r < 6; ++r) {
         for (int c = 0; c < 5; ++c) {
             int lvl = r * 5 + c + 1;
-            int row = center_row - 6 + r * 2;
+            int row = center_row - 8 + r * 2;
             int col = center_col - 22 + c * 11;
             
             bool locked = (lvl > max_unlocked_level_);
@@ -3648,7 +3766,11 @@ void GameEngine::renderLevelSelector() {
             else if (lvl >= 9 && lvl <= 12) theme_color = {255, 100, 255}; // Pink
             else if (lvl >= 13 && lvl <= 16) theme_color = {255, 100, 0}; // Orange
             else if (lvl >= 17 && lvl <= 19) theme_color = {255, 255, 0}; // Gold
-            else theme_color = {255, 50, 50}; // Glitch Red
+            else if (lvl == 20) theme_color = {255, 50, 50}; // Glitch Red
+            else if (lvl >= 21 && lvl <= 23) theme_color = {200, 100, 255}; // Violet
+            else if (lvl >= 24 && lvl <= 26) theme_color = {120, 220, 255}; // Ice
+            else if (lvl >= 27 && lvl <= 29) theme_color = {255, 180, 60};  // Amber
+            else theme_color = {255, 50, 50}; // Glitch Red (level 30 boss)
             
             std::string label;
             if (locked) {
@@ -3691,11 +3813,11 @@ void GameEngine::renderLevelSelector() {
     }
     
     // Render Back Button
-    int row_back = center_row + 2;
+    int row_back = center_row + 4;
     std::string back_text;
     Color back_color = {150, 150, 150};
     bool back_bold = false;
-    if (level_select_cursor_ == 20) {
+    if (level_select_cursor_ == 30) {
         back_text = "> [ BACK TO MENU ] <";
         if (click_feedback_timer_ > 0) {
             back_color = {255, 255, 255};
@@ -3819,7 +3941,7 @@ void GameEngine::renderDevMenu() {
     drawDoubleBorderBox(center_row - 7, center_col - 22, 44, 15, {255, 50, 50}, {0, 0, 0});
     drawString(center_row - 7, center_col - 8, " DEVELOPER MENU ", {255, 255, 0});
     
-    std::vector<std::string> pm_colors = {"Classic Yellow", "Cyan", "Green", "Pink", "Red", "Rainbow"};
+    std::vector<std::string> pm_colors = {"Classic Yellow", "Cyan", "Green", "Pink", "Red", "Violet", "Ice", "Amber", "Rainbow"};
     std::string color_name = pm_colors[selected_pacman_color_];
     
     std::array<std::string, 10> options = {
@@ -3991,14 +4113,20 @@ void GameEngine::loadKeybindings() {
     }
 }
 
+std::filesystem::path GameEngine::localBinPath() {
+    const char* home_env = std::getenv("HOME");
+    std::filesystem::path home = (home_env != nullptr && *home_env != '\0')
+        ? std::filesystem::path(home_env)
+        : std::filesystem::path("/tmp");
+    return home / ".local" / "bin" / "pacterm";
+}
+
 bool GameEngine::install_bin(bool cli_mode) {
     try {
         std::filesystem::path self_path = std::filesystem::read_symlink("/proc/self/exe");
-        std::filesystem::path dest_path = "/usr/bin/pacterm";
+        std::filesystem::path dest_path = localBinPath();
         
-        if (std::filesystem::exists(dest_path)) {
-            std::filesystem::remove(dest_path);
-        }
+        std::filesystem::create_directories(dest_path.parent_path());
         
         std::filesystem::copy_file(self_path, dest_path, std::filesystem::copy_options::overwrite_existing);
         std::filesystem::permissions(dest_path, std::filesystem::perms::owner_exec | std::filesystem::perms::group_exec | std::filesystem::perms::others_exec, std::filesystem::perm_options::add);
@@ -4017,7 +4145,7 @@ bool GameEngine::install_bin(bool cli_mode) {
 
 bool GameEngine::delete_bin(bool cli_mode) {
     try {
-        std::filesystem::path installed_path = "/usr/bin/pacterm";
+        std::filesystem::path installed_path = localBinPath();
         
         if (std::filesystem::exists(installed_path)) {
             std::filesystem::remove(installed_path);
@@ -4039,7 +4167,7 @@ bool GameEngine::delete_bin(bool cli_mode) {
 }
 
 bool GameEngine::isInstalledLocally() const {
-    return std::filesystem::exists("/usr/bin/pacterm");
+    return std::filesystem::exists(localBinPath());
 }
 
 namespace {
