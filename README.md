@@ -1,4 +1,4 @@
-# PacTerm - Terminal Pac-Man V1.3.2
+# PacTerm - Terminal Pac-Man V1.3.5
 
 A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, avoid ghosts, and chase high scores in your terminal.
 
@@ -12,7 +12,14 @@ A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, 
 - **High Score System**: Persistent high scores saved locally
 - **Sound Effects**: Optional terminal bell sounds for actions
 - **Multiple Levels**: Progressive difficulty with increasing ghost speed
-- **Responsive Controls**: Smooth keyboard controls (WASD/ZSQD/Arrow keys)
+- **Responsive Controls**: Smooth keyboard controls (WASD / ZQSD / Arrow / Vim keys)
+- **PACTERM Letter Hunt**: Collect the hidden `P-A-C-T-E-R-M` letters each level (20s despawn) to unlock the **PacTerm+** composite theme and more
+- **PacTerm+ Theme**: A dynamic composite theme blending the best of every color scheme; unlock it by collecting all 7 letters
+- **Themes**: Unlockable palette (Classic, Cyan, Green, Pink, Red, Violet, Ice, Amber, Rainbow, PacTerm+)
+- **Fever Time**: Chaining 4 ghosts in one power pellet eats triggers Fever x2 scoring with ghost trails
+- **Letter Buffs**: Collecting a letter grants ghost freeze, a speed boost, and a temporary 2× score multiplier
+- **Level Rating**: Each cleared level is rated 0–10 with a bonus of rating × 1000 pts
+- **Cheat Code**: Enter `WAEL` in the redeem menu to unlock all levels, Rainbow, and PacTerm+
 
 ## Install Compiled Binary for Arch Linux
 ```bash
@@ -81,13 +88,10 @@ sudo cp pacterm /usr/local/bin/
 
 | Key | Action |
 |-----|--------|
-| `W` / `↑` | Move Up |
-| `S` / `↓` | Move Down |
-| `A` / `←` | Move Left |
-| `D` / `→` | Move Right |
-| `P` | Pause/Resume |
-| `Q` / `ESC` | Quit Game |
+| `WASD` / `ZQSD` / `↑←↓→` / `HJKL` | Move (arrows and Vim keys always enabled) |
+| `P` / `ESC` | Pause / Resume |
 | `M` | Toggle Sound |
+| `SPACE` | Dash (Levels 17-19) |
 
 ## Gameplay
 
@@ -103,7 +107,11 @@ sudo cp pacterm /usr/local/bin/
   - Pellet: 10 pts
   - Power Pellet: 50 pts
   - Ghost (1st): 200 pts, (2nd): 400 pts, (3rd): 800 pts, (4th): 1600 pts
-  - Level Bonus: 1000 × Level
+  - Letter Hunt: 1000 pts + buffs per letter
+  - Level Rating: rating (0–10) × 1000 pts
+- **Fever Time**: Chain 4 ghosts in one power pellet for 2× scoring for 6 seconds
+- **Letter Hunt**: The expected letter (`P` on level 1, `A` on level 2, … `M` on level 7, then repeats) spawns on a reachable tile for 20 seconds. Collect all 7 to unlock PacTerm+
+- **Level Rating**: `par = 45s + 0.15s × dots`; each death costs 2.5, every 10s over par costs 1
 
 ## Building from Source
 
@@ -214,6 +222,17 @@ clang-format -i src/*.cpp src/*.hpp
 # Static analysis
 clang-tidy src/*.cpp -- -std=c++20 -Isrc
 ```
+
+## Changelog
+
+### v1.3.5
+- **Performance**: Fixed lag spikes when the frame rate drops (delta is now clamped), and cut per-frame allocations in the renderer (theme palettes and glitch glyphs are built once per frame instead of once per cell)
+- **Bug fix**: Fixed a softlock where a letter spawning on a dot could leave a level with a dot counter that never reached zero
+- **Controls**: `ESC` now pauses during gameplay (previously ignored); updated controls and scoring docs to match the game
+- **Cleanup**: Removed dead code (unused keybinding loader, legacy `Fruit` tile, unused animation/PRNG helpers) and made timer naming consistent
+
+### v1.3.4
+- Added Fever Time, Letter Hunt buffs, dynamic level rating, `WAEL` cheat code, and the PacTerm+ composite theme
 
 ## License
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.2
+// pacterm v1.3.5
 #include "GameEngine.hpp"
 #include <iostream>
 #include <string>
@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         std::string arg = argv[1];
         if (arg == "--version" || arg == "-v") {
-            std::cout << "pacterm v1.3.2" << std::endl;
+            std::cout << "pacterm v" << Config::PACTERM_VERSION << std::endl;
             return 0;
         } else if (arg == "--install" || arg == "-i") {
             return GameEngine::install_bin(true) ? 0 : 1;
@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
-    
+
     try {
         GameEngine engine;
         engine.run();

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.1
+// pacterm v1.3.5
 #pragma once
 
 #include <cstdint>
@@ -16,31 +16,25 @@
 struct Vec2 {
     int x = 0;  // column
     int y = 0;  // row
-    
+
     constexpr bool operator==(const Vec2&) const = default;
-    
+
     constexpr Vec2 operator+(const Vec2& other) const {
         return {x + other.x, y + other.y};
     }
-    
+
     constexpr Vec2 operator-(const Vec2& other) const {
         return {x - other.x, y - other.y};
     }
-    
+
     constexpr Vec2 operator*(int scalar) const {
         return {x * scalar, y * scalar};
     }
-    
+
     Vec2& operator+=(const Vec2& other) {
         x += other.x;
         y += other.y;
         return *this;
-    }
-};
-
-struct Vec2Hash {
-    std::size_t operator()(const Vec2& v) const noexcept {
-        return std::hash<int>()(v.x) ^ (std::hash<int>()(v.y) << 16);
     }
 };
 
@@ -51,7 +45,6 @@ enum class TileType : uint8_t {
     PowerPellet = 3,
     GhostDoor   = 4,
     Tunnel      = 5,
-    Fruit       = 6,
     Cherry      = 7,
     GoldenApple = 8,
     LetterP     = 9,
@@ -112,18 +105,17 @@ enum class GamePhase : uint8_t {
     GetReady   = 1,  // "READY!" countdown
     Playing    = 2,
     PacDying   = 3,  // death animation
-    LevelClear = 4,
-    GameOver   = 5,
-    Paused     = 6,
-    DevMenu    = 7,
-    KeyConfig  = 8,
-    UsernameInput = 9,
-    Screensaver = 10,
-    LevelSelector = 11,
-    DevPasswordInput = 12,
-    Settings = 13,
-    RedeemInput = 14,
-    Stats = 15,
+    GameOver   = 4,
+    Paused     = 5,
+    DevMenu    = 6,
+    KeyConfig  = 7,
+    UsernameInput = 8,
+    Screensaver = 9,
+    LevelSelector = 10,
+    DevPasswordInput = 11,
+    Settings = 12,
+    RedeemInput = 13,
+    Stats = 14,
 };
 
 namespace Config {
@@ -146,11 +138,33 @@ namespace Config {
     inline constexpr int SCORE_DOT          = 10;
     inline constexpr int SCORE_POWER_PELLET = 50;
     inline constexpr int SCORE_GHOST_BASE   = 200; // doubles: 200, 400, 800, 1600
-    inline constexpr int SCORE_FRUIT        = 100;
     inline constexpr int EXTRA_LIFE_AT      = 10000;
 
     // Initial lives
     inline constexpr int INITIAL_LIVES = 3;
+
+    // Version string shown by the CLI and in the title menu
+    inline constexpr const char* PACTERM_VERSION = "1.3.5";
+
+    // Number of selectable general themes, and the composite PacTerm+ slot
+    inline constexpr int THEME_COUNT = 10;
+    inline constexpr int PACTERM_PLUS_THEME = 9;
+
+    // PACTERM Letter Hunt buffs
+    inline constexpr int LETTER_SCORE = 1000;                 // flat score granted
+    inline constexpr int LETTER_GHOST_FREEZE_MS = 3000;       // ghost AI freeze
+    inline constexpr int LETTER_SPEED_BOOST_MS = 10000;       // +30% pac speed
+    inline constexpr int LETTER_SCORE_MULT_MS = 15000;        // 2.0x score window
+    inline constexpr double LETTER_SCORE_MULTIPLIER = 2.0;
+    inline constexpr double PAC_SPEED_BOOST_FACTOR = 0.7;     // 30% faster interval
+    inline constexpr double FEVER_SPEED_FACTOR = 0.77;        // fever speed interval scale
+
+    // Level clear performance rating
+    inline constexpr double LEVEL_PAR_BASE_S = 45.0;          // par time base (seconds)
+    inline constexpr double LEVEL_PAR_PER_DOT_S = 0.15;       // par time per remaining dot
+    inline constexpr double RATING_DEATH_PENALTY = 2.5;       // penalty per death
+    inline constexpr double RATING_TIME_PENALTY_PER_10S = 1.0;// penalty per 10s over par
+    inline constexpr int RATING_BONUS_PER_POINT = 1000;       // Rating x 1000 bonus pts
 
     // Ghost scatter targets (corners of the map in tile coords)
     inline constexpr Vec2 BLINKY_SCATTER = {25, 0};
@@ -199,7 +213,7 @@ struct Cell {
     Color bg = {0, 0, 0};
     bool bold = false;
     bool blink = false;
-    
+
     constexpr bool operator==(const Cell&) const = default;
 };
 
@@ -808,8 +822,8 @@ namespace MapTemplates {
         "#.##########.##.##########.#",
         "#.##########.##.##########.#",
         "#o..##.......  .......##..o#",
-        "###.##.##########.##.##.###",
-        "###.##.##########.##.##.###",
+        "###.##.##.########.##.##.###",
+        "###.##.##.########.##.##.###",
         "#......##....##....##......#",
         "#.####.##.########.##.####.#",
         "#.####.##.########.##.####.#",
@@ -1240,24 +1254,105 @@ struct Particle {
     double vy;
     Color color;
     int lifetime_ms = 400; // 400ms default
+    std::string glyph;     // optional custom glyph (fever ghost trails, etc.)
 };
+
+// PACTERM Letter Hunt: collect the letters P-A-C-T-E-R-M across runs.
+// One letter spawns per level (Level 1='P' ... Level 7='M'); missed letters
+// are retried in sequential order after the cycle wraps. Collecting all seven
+// permanently unlocks the composite PacTerm+ theme.
+struct LetterHuntState {
+    static constexpr int LETTER_COUNT = 7;
+    static constexpr int ACTIVE_MS = 20000; // a letter despawns after 20s
+    static constexpr uint8_t FULL_MASK = 0x7F;
+
+    uint8_t letter_mask = 0;   // bit 0='P' ... bit 6='M'
+    bool active = false;       // a letter is currently placed on the map
+    Vec2 pos{};                // spawned tile position
+    TileType type = TileType::LetterP;
+    int timer_ms = 0;          // remaining lifetime of the active letter
+
+    bool isCollected(int idx) const {
+        return idx >= 0 && idx < LETTER_COUNT && (letter_mask & (1u << idx)) != 0;
+    }
+    void collect(int idx) {
+        if (idx >= 0 && idx < LETTER_COUNT) {
+            letter_mask = static_cast<uint8_t>(letter_mask | (1u << idx));
+        }
+    }
+    bool allCollected() const { return (letter_mask & FULL_MASK) == FULL_MASK; }
+};
+
+// Fever Time: triggered when all 4 ghosts are eaten during a single power
+// pellet fright window. 2.0x score multiplier that stacks multiplicatively
+// with the Letter Hunt double-score buff (4.0x combined).
+namespace FeverState {
+    constexpr int DURATION_MS = 6000;
+    constexpr double MULTIPLIER = 2.0;
+}
+
+// Base palette used by the PacTerm+ composite theme. Wall colors are stored
+// as a vertical gradient (top row -> bottom row) so the existing per-row
+// gradient rendering can interpolate between the two endpoints.
+struct ThemePalette {
+    Color wall_top;    // wall gradient at map row 0
+    Color wall_bottom; // wall gradient at map row MAP_HEIGHT-1
+    Color dot;         // dots & power pellets
+    Color pacman;      // Pac-Man body
+    Color ghost;       // ghost body (high-contrast pick)
+    Color hud;         // HUD / border accent
+};
+
+// PacTerm+ composite theme: walls, dots, ghosts and HUD use an equal mix of
+// every non-rainbow theme's accent color (Classic, Cyan, Green, Pink, Red,
+// Violet, Ice, Amber), averaged per RGB channel, so no single theme dominates.
+// Pac-Man keeps its signature Classic Yellow so it stays visible against the
+// blended backdrop (and matches the "PacTerm+" Pac-Man color option exactly).
+inline constexpr ThemePalette buildPacTermPlusTheme() {
+    constexpr std::array<Color, 8> accents = {{
+        {255, 220, 0},    // Classic Yellow
+        {0, 255, 255},    // Cyan
+        {0, 255, 90},     // Green
+        {255, 120, 220},  // Pink
+        {255, 60, 60},    // Red
+        {170, 90, 255},   // Violet
+        {140, 225, 255},  // Ice
+        {255, 190, 60},   // Amber
+    }};
+    unsigned sum_r = 0, sum_g = 0, sum_b = 0;
+    for (const auto& a : accents) {
+        sum_r += a.r; sum_g += a.g; sum_b += a.b;
+    }
+    const Color mix = {
+        static_cast<uint8_t>(sum_r / accents.size()),
+        static_cast<uint8_t>(sum_g / accents.size()),
+        static_cast<uint8_t>(sum_b / accents.size()),
+    };
+    return ThemePalette{
+        mix, mix,         // walls use the blended accent
+        mix,              // dots & power pellets
+        {255, 220, 0},    // Pac-Man body (Classic Yellow)
+        mix,              // ghost body
+        mix,              // HUD / border accent
+    };
+}
 
 class Map {
 public:
     Map() {
         reset();
     }
-    
+
     void loadFromTemplate(const std::array<const char*, 31>& templ, int levelNumber, bool mutate = true) {
         total_dots_ = 0;
-        
+
         // Deterministic PRNG seeded with levelNumber to mutate the template
         uint32_t prng = levelNumber * 81273 + 98213;
         auto rand_num = [&]() {
             prng = prng * 1664525 + 1013904223;
             return prng;
         };
-        
+
         for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
             for (int x = 0; x < Config::MAP_WIDTH; ++x) {
                 char c = templ[y][x];
@@ -1276,7 +1371,7 @@ public:
                 tiles_[y][x] = t;
             }
         }
-        
+
         if (mutate) {
             // Mutate left half, then mirror (protecting essential zones)
             struct Coord { int x, y; };
@@ -1288,7 +1383,7 @@ public:
                     if (y == 23 && x == 13) continue;
                     // Protect tunnel row
                     if (y == Config::TUNNEL_ROW) continue;
-                    
+
                     uint32_t r = rand_num() % 100;
                     if (tiles_[y][x] == TileType::Wall) {
                         // 10% chance to remove a wall to open up new pathways
@@ -1304,7 +1399,7 @@ public:
                 }
             }
         }
-        
+
         if (mutate) {
             // Mirror the left half to the right half
             for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
@@ -1312,7 +1407,7 @@ public:
                     tiles_[y][27 - x] = tiles_[y][x];
                 }
             }
-            
+
             // Populate path with Dots
             for (int y = 1; y < Config::MAP_HEIGHT - 1; ++y) {
                 for (int x = 1; x < Config::MAP_WIDTH - 1; ++x) {
@@ -1325,14 +1420,14 @@ public:
                     if (y == 23 && x == 13) {
                         continue; // Pacman spawn
                     }
-                    
+
                     if (tiles_[y][x] == TileType::Empty || tiles_[y][x] == TileType::Dot) {
                         tiles_[y][x] = TileType::Dot;
                         total_dots_++;
                     }
                 }
             }
-            
+
             // Setup 4 Power Pellets in the corners
             std::array<Vec2, 4> pellets = {{
                 {1, 3}, {26, 3}, {1, 23}, {26, 23}
@@ -1353,7 +1448,7 @@ public:
                 }
             }
         }
-        
+
         remaining_dots_ = total_dots_;
     }
 
@@ -1362,7 +1457,7 @@ public:
         if (levelNumber >= 1 && levelNumber <= 30) {
             manual = true;
         }
-        
+
         if (manual) {
             switch (levelNumber) {
                 case 1:  loadFromTemplate(MapTemplates::MAP_TEMPLATE_1, levelNumber, false); break;
@@ -1403,14 +1498,14 @@ public:
             for (auto& row : tiles_) {
                 row.fill(TileType::Wall);
             }
-            
+
             // Deterministic PRNG seeded with levelNumber
             uint32_t prng_state = levelNumber * 73821 + 528913;
             auto rand_num = [&]() {
                 prng_state = prng_state * 1664525 + 1013904223;
                 return prng_state;
             };
-            
+
             // Setup structured Ghost House in center (columns 10 to 17, rows 12 to 16)
             // Left half of house setup:
             // Set perimeter walls
@@ -1423,17 +1518,17 @@ public:
             }
             tiles_[12][13] = TileType::GhostDoor;
             tiles_[16][13] = TileType::Wall;
-            
+
             // Clear house interior
             for (int y = 13; y <= 15; ++y) {
                 for (int x = 11; x <= 13; ++x) {
                     tiles_[y][x] = TileType::Empty;
                 }
             }
-            
+
             // Pre-carve Pacman spawn exit path
             tiles_[23][13] = TileType::Empty;
-            
+
             // Left tunnel path
             for (int x = 0; x <= 5; ++x) {
                 tiles_[Config::TUNNEL_ROW][x] = TileType::Empty;
@@ -1443,13 +1538,13 @@ public:
             // Run DFS maze carving on odd coordinates of left half (1 to 13)
             struct Coord { int x, y; };
             std::vector<Coord> stack;
-            
+
             tiles_[1][1] = TileType::Empty;
             stack.push_back({1, 1});
-            
+
             while (!stack.empty()) {
                 Coord curr = stack.back();
-                
+
                 std::vector<Coord> neighbors;
                 std::array<Coord, 4> dirs = {{
                     {curr.x + 2, curr.y},
@@ -1457,7 +1552,7 @@ public:
                     {curr.x, curr.y + 2},
                     {curr.x, curr.y - 2}
                 }};
-                
+
                 for (const auto& next : dirs) {
                     if (next.x >= 1 && next.x <= 13 && next.y >= 1 && next.y <= 29) {
                         if (tiles_[next.y][next.x] == TileType::Wall) {
@@ -1468,29 +1563,29 @@ public:
                         }
                     }
                 }
-                
+
                 if (!neighbors.empty()) {
                     int idx = rand_num() % neighbors.size();
                     Coord chosen = neighbors[idx];
-                    
+
                     tiles_[chosen.y][chosen.x] = TileType::Empty;
                     tiles_[(curr.y + chosen.y) / 2][(curr.x + chosen.x) / 2] = TileType::Empty;
-                    
+
                     stack.push_back(chosen);
                 } else {
                     stack.pop_back();
                 }
             }
-            
+
             // Ensure critical connections
             tiles_[22][13] = TileType::Empty;
             tiles_[23][13] = TileType::Empty;
             tiles_[23][12] = TileType::Empty;
             tiles_[23][11] = TileType::Empty;
-            
+
             tiles_[10][13] = TileType::Empty;
             tiles_[11][13] = TileType::Empty; // Path leading to ghost house entrance
-            
+
             tiles_[Config::TUNNEL_ROW][5] = TileType::Empty;
             tiles_[Config::TUNNEL_ROW][6] = TileType::Empty;
 
@@ -1504,7 +1599,7 @@ public:
                         if (tiles_[y+1][x] == TileType::Wall) { wall_count++; wall_dirs.push_back({x, y+1}); }
                         if (tiles_[y][x-1] == TileType::Wall) { wall_count++; wall_dirs.push_back({x-1, y}); }
                         if (tiles_[y][x+1] == TileType::Wall) { wall_count++; wall_dirs.push_back({x+1, y}); }
-                        
+
                         if (wall_count >= 3 && !wall_dirs.empty()) {
                             for (const auto& w : wall_dirs) {
                                 if (w.x > 0 && w.x < 13 && w.y > 0 && w.y < Config::MAP_HEIGHT - 1) {
@@ -1528,7 +1623,7 @@ public:
                         bool right_empty = (tiles_[y][x+1] == TileType::Empty || tiles_[y][x+1] == TileType::Dot);
                         bool up_empty = (tiles_[y-1][x] == TileType::Empty || tiles_[y-1][x] == TileType::Dot);
                         bool down_empty = (tiles_[y+1][x] == TileType::Empty || tiles_[y+1][x] == TileType::Dot);
-                        
+
                         if ((left_empty && right_empty && !up_empty && !down_empty) ||
                             (up_empty && down_empty && !left_empty && !right_empty)) {
                             if (!(x >= 10 && y >= 12 && y <= 16)) {
@@ -1547,7 +1642,7 @@ public:
                     tiles_[y][27 - x] = tiles_[y][x];
                 }
             }
-            
+
             // Populate carved path with Dots
             total_dots_ = 0;
             for (int y = 1; y < Config::MAP_HEIGHT - 1; ++y) {
@@ -1561,14 +1656,14 @@ public:
                     if (y == 23 && x == 13) {
                         continue; // Pacman spawn
                     }
-                    
+
                     if (tiles_[y][x] == TileType::Empty) {
                         tiles_[y][x] = TileType::Dot;
                         ++total_dots_;
                     }
                 }
             }
-            
+
             // Setup 4 Power Pellets in the corners
             std::array<Vec2, 4> pellets = {{
                 {1, 3}, {26, 3}, {1, 23}, {26, 23}
@@ -1578,19 +1673,19 @@ public:
                     tiles_[p.y][p.x] = TileType::PowerPellet;
                 }
             }
-            
+
             remaining_dots_ = total_dots_;
         }
     }
-    
+
     void reset() {
         loadLevel(1);
     }
-    
+
     TileType getTile(Vec2 pos) const {
         return getTile(pos.x, pos.y);
     }
-    
+
     TileType getTile(int x, int y) const {
         if (y < 0 || y >= Config::MAP_HEIGHT) {
             return TileType::Wall;
@@ -1603,12 +1698,12 @@ public:
         }
         return tiles_[y][x];
     }
-    
+
     void setTile(Vec2 pos, TileType type) {
         if (pos.x >= 0 && pos.x < Config::MAP_WIDTH && pos.y >= 0 && pos.y < Config::MAP_HEIGHT) {
             TileType prev = tiles_[pos.y][pos.x];
             tiles_[pos.y][pos.x] = type;
-            
+
             if ((prev == TileType::Dot || prev == TileType::PowerPellet) && type == TileType::Empty) {
                 if (remaining_dots_ > 0) {
                     --remaining_dots_;
@@ -1616,17 +1711,17 @@ public:
             }
         }
     }
-    
+
     bool isWalkable(Vec2 pos) const {
         TileType t = getTile(pos);
         return t != TileType::Wall && t != TileType::GhostDoor;
     }
-    
+
     bool isWalkableByGhost(Vec2 pos) const {
         TileType t = getTile(pos);
         return t != TileType::Wall;
     }
-    
+
     bool isInTunnel(Vec2 pos) const {
         if (pos.y >= 0 && pos.y < Config::MAP_HEIGHT) {
             if (tiles_[pos.y][0] == TileType::Tunnel || tiles_[pos.y][Config::MAP_WIDTH - 1] == TileType::Tunnel) {
@@ -1635,7 +1730,7 @@ public:
         }
         return false;
     }
-    
+
     Vec2 wrapTunnel(Vec2 pos) const {
         if (pos.y >= 0 && pos.y < Config::MAP_HEIGHT) {
             if (tiles_[pos.y][0] == TileType::Tunnel || tiles_[pos.y][Config::MAP_WIDTH - 1] == TileType::Tunnel) {
@@ -1648,10 +1743,10 @@ public:
         }
         return pos;
     }
-    
+
     int remainingDots() const { return remaining_dots_; }
     int totalDots() const { return total_dots_; }
-    
+
     uint8_t wallNeighborMask(Vec2 pos) const {
         auto isWallOrDoor = [this](int x, int y) {
             TileType t = getTile(x, y);
@@ -1664,7 +1759,7 @@ public:
         if (pos.x > 0 && isWallOrDoor(pos.x - 1, pos.y)) mask |= 8;     // Left
         return mask;
     }
-    
+
 private:
     std::array<std::array<TileType, 28>, 31> tiles_{};
     int total_dots_ = 0;
@@ -1677,11 +1772,11 @@ public:
     Vec2 position;
     Direction currentDirection = Direction::None;
     Direction requestedDirection = Direction::None;
-    
+
     bool isMoving() const {
         return currentDirection != Direction::None;
     }
-    
+
     virtual void reset() = 0;
     virtual ~Entity() = default;
 
