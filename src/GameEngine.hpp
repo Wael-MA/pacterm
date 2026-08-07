@@ -7,6 +7,8 @@
 #include "Pacman.hpp"
 #include "Ghost.hpp"
 #include <array>
+#include <cstddef>
+#include <random>
 #include <string>
 #include <vector>
 #include <chrono>
@@ -14,7 +16,6 @@
 #include <csignal>
 #include <unordered_map>
 #include <filesystem>
-#include <functional>
 
 enum class GameAction : uint8_t {
     None  = 0,
@@ -25,7 +26,6 @@ enum class GameAction : uint8_t {
     Pause = 5
 };
 
-// Animation Controller for smooth fade effects
 struct AnimationController {
     enum class State {
         Idle,
@@ -57,25 +57,23 @@ public:
     bool isInstalledLocally() const;
 
 private:
-    // Core state
     GamePhase phase_ = GamePhase::MainMenu;
     Map map_;
     PacMan pacman_;
-    std::array<Ghost, 4> ghosts_;  // Blinky, Pinky, Inky, Clyde
+    std::array<Ghost, 4> ghosts_;
 
     int score_ = 0;
     int high_score_ = 0;
     int lives_ = Config::INITIAL_LIVES;
     int level_ = 1;
     int pause_menu_selection_ = 0;
-    int ghosts_eaten_combo_ = 0;  // resets when frightened ends
+    int ghosts_eaten_combo_ = 0;
     bool extra_life_awarded_ = false;
 
     int main_menu_selection_ = 0;
     std::string main_menu_message_ = "";
     int main_menu_msg_timer_ms_ = 0;
 
-    // Timing & Loop logic
     bool running_ = true;
     int phase_timer_ms_ = 0;
     int pac_move_accumulator_ = 0;
@@ -83,18 +81,16 @@ private:
     int global_mode_timer_ms_ = 0;
     size_t current_wave_ = 0;
 
-    // Terminal Raw Mode settings
     struct termios original_termios_{};
     bool raw_mode_enabled_ = false;
     Vec2 term_size_ = {80, 24};
     bool use_nerd_fonts_ = true;
 
-    // Mouse tracking state (SGR)
     int mouse_x_ = 0;
     int mouse_y_ = 0;
     int mouse_button_ = 0;
     bool mouse_press_ = false;
-    bool mouse_hover_active_ = false;  // set on mouse motion, cleared on keyboard
+    bool mouse_hover_active_ = false;
     static bool signal_term_restored_;
     static struct termios signal_original_termios_;
     static void signalHandler(int sig);
@@ -102,14 +98,12 @@ private:
     static void restoreTerminalForSignal();
     static void installSignals();
 
-    // Double buffered rendering buffers
     int render_width_ = 0;
     int render_height_ = 0;
-    std::vector<std::vector<Cell>> front_buffer_;  // what's on screen
-    std::vector<std::vector<Cell>> back_buffer_;   // what we're drawing to
+    std::vector<std::vector<Cell>> front_buffer_;
+    std::vector<std::vector<Cell>> back_buffer_;
     std::string output_batch_;
 
-    // Engine internals
     void enableRawMode();
     void disableRawMode();
     void queryTerminalSize();
@@ -123,37 +117,32 @@ private:
     void render();
     void checkCollisions();
 
-    // Ghost Target Calculation & AI Wave Timing
     Vec2 calculateGhostTarget(const Ghost& ghost) const;
     void moveGhost(Ghost& ghost);
     void updateGhostAI(Ghost& ghost, int delta_ms);
     void updateGlobalModeTimer(int delta_ms);
     GhostMode getGlobalMode() const;
 
-    // Phase transitions
     void startMainMenu();
     void startGetReady();
     void startPlaying();
     void startDeath();
     void startLevelClear();
+    void finishLevelClear();
     void startGameOver();
 
-    // Collision logic
     void eatDot();
     void eatPowerPellet();
     void eatGhost(Ghost& ghost);
     void pacmanCaught();
 
-    // PACTERM Letter Hunt
     void spawnLetter();
     void collectLetter(int letter_idx, Vec2 pos);
 
-    // Fever Time & score multipliers
     void triggerFever();
     void spawnGhostTrail(Vec2 pos);
     double getActiveScoreMultiplier() const;
 
-    // Level clear performance rating (0..10) and its dynamic bonus
     int computeLevelRating(double elapsed_s, double par_s, double& penalty_out) const;
     struct Viewport {
         int start_x = 0;
@@ -166,7 +155,6 @@ private:
     };
     Viewport getViewport() const;
 
-    // Renderer double buffering
     void initRenderer();
     void setCell(int row, int col, const Cell& cell);
     void fillRow(int row, Color fg, Color bg);
@@ -179,10 +167,9 @@ private:
     void clearBuffer(Color bg = {0, 0, 0});
     void presentFrame();
 
-    // Drawing components
-    void renderMap();
-    void renderEntities();
-    void renderHUD();
+    void renderMap(const ThemePalette& ptp);
+    void renderEntities(const ThemePalette& ptp);
+    void renderHUD(const ThemePalette& ptp);
     void renderEffects();
     void renderMainMenu();
     void renderSettings();
@@ -195,7 +182,6 @@ private:
     void activateSettingsSelection();
     void startLevel(int lvl);
 
-    // High Score and Cheats/Dev Options
     bool immortal_ = false;
     bool muted_ = false;
     bool cheat_freeze_ghosts_ = false;
@@ -210,14 +196,13 @@ private:
     std::filesystem::path getCacheFilePath();
     bool isAzertyLayout();
 
-    // Campaign, Level Selector & Theme Mechanics
     int max_unlocked_level_ = 1;
-    int selected_pacman_color_ = 0; // 0 = Classic Yellow, 1 = Cyan, 2 = Green, 3 = Pink, 4 = Red, 5 = Violet, 6 = Ice, 7 = Amber, 8 = Rainbow
+    int selected_pacman_color_ = 0;
     int level_select_cursor_ = 0;
     void renderLevelSelector();
 
     bool unlocked_rainbow_ = false;
-    int selected_general_theme_ = 0; // 0 = Classic, 1 = Cyan, 2 = Green, 3 = Pink, 4 = Red, 5 = Violet, 6 = Ice, 7 = Amber, 8 = Rainbow
+    int selected_general_theme_ = 0;
     int settings_selection_ = 0;
     bool apply_menu_theme_ = false;
     std::string username_ = "Wael";
@@ -232,44 +217,39 @@ private:
     int power_pellets_ = 0;
     int time_played_ms_ = 0;
     Color getRainbowColor(double offset) const;
+    Color pacManColor() const;
+    Color tileAccentColor(int x, int y, const ThemePalette& ptp) const;
     Color applyGeneralTheme(Color fg, int row, int col) const;
     bool isColorLocked(int color_idx) const;
     bool isGlitchZone(int x, int y) const;
 
-    // Warp Portals check for Pac-man (Theme 3 - Cyberpunk)
     Vec2 portal_A1_ = {0, 0};
     Vec2 portal_A2_ = {0, 0};
     Vec2 portal_B1_ = {0, 0};
     Vec2 portal_B2_ = {0, 0};
     bool pac_just_warped_ = false;
 
-    // Acid trails (Theme 2 - Toxic Green)
     struct AcidTrail {
         Vec2 pos;
         int lifetime_ms;
     };
     std::vector<AcidTrail> acid_trails_;
 
-    // Lava (Theme 4 - Lava Orange)
     struct LavaTile {
         Vec2 pos;
-        int warning_ms; // warning countdown
-        int active_ms;  // active duration
+        int warning_ms;
+        int active_ms;
     };
     std::vector<LavaTile> lava_tiles_;
     int lava_spawn_timer_ms_ = 2000;
 
-    // Dash (Theme 5 - Cybernetic Gold)
     int dash_cooldown_ = 0;
 
-    // Ghost Blitz (Theme 6 - Violet, levels 21-23)
     int ghost_blitz_timer_ms_ = 0;
     int ghost_blitz_cooldown_ = 0;
 
-    // Glacier Freeze (Theme 7 - Ice, levels 24-26)
     int ice_freeze_cooldown_ = 0;
 
-    // Timed special item spawning
     bool special_item_active_ = false;
     Vec2 special_item_pos_;
     TileType special_item_type_;
@@ -283,49 +263,39 @@ private:
     void spawnScorePopup(Vec2 pos, int points, Color fg);
     void spawnParticleBurst(Vec2 pos, Color color);
 
-    // Click feedback flash
     int click_feedback_timer_ms_ = 0;
 
-    // Animation controller for fade effects
     AnimationController fade_animation_;
 
-    // AFK Screensaver Variables
     int afk_timer_ms_ = 0;
     uint64_t current_time_ms_ = 0;
     double screensaver_x_ = -10.0;
     int screensaver_dir_ = 1;
     void renderScreensaver();
 
-    // Popups, Particles, and Status Effects
     std::vector<FloatingPopup> popups_;
     std::vector<Particle> particles_;
     int speed_boost_timer_ms_ = 0;
     int ice_freeze_timer_ms_ = 0;
 
-    // Fever Time (all 4 ghosts eaten in one fright window)
     int fever_timer_ms_ = 0;
     bool fever_active_ = false;
 
-    // PACTERM Letter Hunt buff timers
-    int ghost_freeze_timer_ms_ = 0;      // ghost AI freeze from a letter
-    int pac_speed_timer_ms_ = 0;         // +30% speed boost from a letter
-    int letter_score_mult_timer_ms_ = 0; // 2.0x score multiplier from a letter
+    int ghost_freeze_timer_ms_ = 0;
+    int pac_speed_timer_ms_ = 0;
+    int letter_score_mult_timer_ms_ = 0;
 
-    // PACTERM Letter Hunt progress & spawned letter
     LetterHuntState letter_hunt_;
     bool pacterm_plus_unlocked_ = false;
 
-    // Level performance tracking (for the 0..10 clear rating)
     uint64_t level_start_time_ms_ = 0;
     int level_deaths_ = 0;
 
-    // Keybindings configuration
     std::unordered_map<int, GameAction> key_to_action_;
     void rebuildKeybindings();
     void renderKeyConfig();
     std::string getKeyName(int k);
 
-    // Custom keys & configuration state
     int custom_key_up_ = 'w';
     int custom_key_down_ = 's';
     int custom_key_left_ = 'a';
@@ -335,12 +305,10 @@ private:
     bool is_binding_ = false;
     GameAction binding_action_ = GameAction::None;
 
-    // Audio synthesis & playback
     void generateSounds();
     void playSound(const std::string& name);
     std::filesystem::path getSoundDirectory();
 
-    // Single process-wide PRNG (seeded once)
     std::mt19937 rng_;
 };
 

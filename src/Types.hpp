@@ -4,18 +4,13 @@
 #pragma once
 
 #include <cstdint>
-#include <cstddef>
-#include <functional>
 #include <array>
 #include <string>
 #include <vector>
-#include <random>
-#include <chrono>
-#include <algorithm>
 
 struct Vec2 {
-    int x = 0;  // column
-    int y = 0;  // row
+    int x = 0;
+    int y = 0;
 
     constexpr bool operator==(const Vec2&) const = default;
 
@@ -86,25 +81,25 @@ constexpr Direction getOppositeDirection(Direction d) {
 }
 
 enum class GhostPersonality : uint8_t {
-    Blinky = 0,  // Red — chases Pac-Man directly
-    Pinky  = 1,  // Pink — ambushes 4 tiles ahead
-    Inky   = 2,  // Cyan — uses Blinky's position + Pac-Man
-    Clyde  = 3,  // Orange — shy, scatter when close
+    Blinky = 0,
+    Pinky  = 1,
+    Inky   = 2,
+    Clyde  = 3,
 };
 
 enum class GhostMode : uint8_t {
     Chase      = 0,
     Scatter    = 1,
     Frightened = 2,
-    Eaten      = 3,  // eyes returning to ghost house
-    InHouse    = 4,  // bouncing inside ghost house
+    Eaten      = 3,
+    InHouse    = 4,
 };
 
 enum class GamePhase : uint8_t {
     MainMenu   = 0,
-    GetReady   = 1,  // "READY!" countdown
+    GetReady   = 1,
     Playing    = 2,
-    PacDying   = 3,  // death animation
+    PacDying   = 3,
     GameOver   = 4,
     Paused     = 5,
     DevMenu    = 6,
@@ -116,6 +111,7 @@ enum class GamePhase : uint8_t {
     Settings = 12,
     RedeemInput = 13,
     Stats = 14,
+    LevelClear = 15,
 };
 
 namespace Config {
@@ -125,74 +121,59 @@ namespace Config {
     inline constexpr int TILE_RENDER_W = 2;
     inline constexpr int TILE_RENDER_H = 1;
 
-    // Timing (in milliseconds)
-    inline constexpr int TARGET_FRAME_MS   = 33;    // ~30 FPS
-    inline constexpr int PAC_MOVE_INTERVAL = 150;   // ms between Pac-Man moves
-    inline constexpr int GHOST_MOVE_INTERVAL = 180;  // ms between ghost moves
-    inline constexpr int FRIGHTENED_DURATION = 6000; // ms ghosts stay frightened
-    inline constexpr int FRIGHTENED_FLASH_AT = 4000; // ms when flashing begins
-    inline constexpr int GETREADY_DURATION   = 2000; // ms for "READY!" screen
-    inline constexpr int DEATH_ANIM_DURATION = 1500; // ms for death animation
+    inline constexpr int TARGET_FRAME_MS   = 33;
+    inline constexpr int PAC_MOVE_INTERVAL = 150;
+    inline constexpr int GHOST_MOVE_INTERVAL = 180;
+    inline constexpr int FRIGHTENED_DURATION = 6000;
+    inline constexpr int FRIGHTENED_FLASH_AT = 4000;
+    inline constexpr int GETREADY_DURATION   = 2000;
+    inline constexpr int DEATH_ANIM_DURATION = 1500;
+    inline constexpr int LEVEL_CLEAR_ANIM_DURATION = 2200;
 
-    // Scoring
     inline constexpr int SCORE_DOT          = 10;
     inline constexpr int SCORE_POWER_PELLET = 50;
-    inline constexpr int SCORE_GHOST_BASE   = 200; // doubles: 200, 400, 800, 1600
+    inline constexpr int SCORE_GHOST_BASE   = 200;
     inline constexpr int EXTRA_LIFE_AT      = 10000;
 
-    // Initial lives
     inline constexpr int INITIAL_LIVES = 3;
 
-    // Version string shown by the CLI and in the title menu
     inline constexpr const char* PACTERM_VERSION = "1.3.5";
 
-    // Number of selectable general themes, and the composite PacTerm+ slot
     inline constexpr int THEME_COUNT = 10;
     inline constexpr int PACTERM_PLUS_THEME = 9;
 
-    // PACTERM Letter Hunt buffs
-    inline constexpr int LETTER_SCORE = 1000;                 // flat score granted
-    inline constexpr int LETTER_GHOST_FREEZE_MS = 3000;       // ghost AI freeze
-    inline constexpr int LETTER_SPEED_BOOST_MS = 10000;       // +30% pac speed
-    inline constexpr int LETTER_SCORE_MULT_MS = 15000;        // 2.0x score window
+    inline constexpr int LETTER_SCORE = 1000;
+    inline constexpr int LETTER_GHOST_FREEZE_MS = 3000;
+    inline constexpr int LETTER_SPEED_BOOST_MS = 10000;
+    inline constexpr int LETTER_SCORE_MULT_MS = 15000;
     inline constexpr double LETTER_SCORE_MULTIPLIER = 2.0;
-    inline constexpr double PAC_SPEED_BOOST_FACTOR = 0.7;     // 30% faster interval
-    inline constexpr double FEVER_SPEED_FACTOR = 0.77;        // fever speed interval scale
+    inline constexpr double PAC_SPEED_BOOST_FACTOR = 0.7;
+    inline constexpr double FEVER_SPEED_FACTOR = 0.77;
 
-    // Level clear performance rating
-    inline constexpr double LEVEL_PAR_BASE_S = 45.0;          // par time base (seconds)
-    inline constexpr double LEVEL_PAR_PER_DOT_S = 0.15;       // par time per remaining dot
-    inline constexpr double RATING_DEATH_PENALTY = 2.5;       // penalty per death
-    inline constexpr double RATING_TIME_PENALTY_PER_10S = 1.0;// penalty per 10s over par
-    inline constexpr int RATING_BONUS_PER_POINT = 1000;       // Rating x 1000 bonus pts
+    inline constexpr double LEVEL_PAR_BASE_S = 45.0;
+    inline constexpr double LEVEL_PAR_PER_DOT_S = 0.15;
+    inline constexpr double RATING_DEATH_PENALTY = 2.5;
+    inline constexpr double RATING_TIME_PENALTY_PER_10S = 1.0;
+    inline constexpr int RATING_BONUS_PER_POINT = 1000;
 
-    // Ghost scatter targets (corners of the map in tile coords)
     inline constexpr Vec2 BLINKY_SCATTER = {25, 0};
     inline constexpr Vec2 PINKY_SCATTER  = {2, 0};
     inline constexpr Vec2 INKY_SCATTER   = {27, 30};
     inline constexpr Vec2 CLYDE_SCATTER  = {0, 30};
 
-    // Ghost house center
     inline constexpr Vec2 GHOST_HOUSE_EXIT = {13, 11};
     inline constexpr Vec2 GHOST_HOUSE_CENTER = {13, 14};
 
-    // Pac-Man spawn
     inline constexpr Vec2 PACMAN_SPAWN = {13, 23};
 
-    // Ghost spawns (inside ghost house)
-    inline constexpr Vec2 BLINKY_SPAWN = {13, 11}; // starts outside
+    inline constexpr Vec2 BLINKY_SPAWN = {13, 11};
     inline constexpr Vec2 PINKY_SPAWN  = {13, 14};
     inline constexpr Vec2 INKY_SPAWN   = {11, 14};
     inline constexpr Vec2 CLYDE_SPAWN  = {15, 14};
 
-    // Tunnel row
     inline constexpr int TUNNEL_ROW = 14;
 }
 
-// Clamp a tile coordinate into the playable map bounds.
-// Ghost target math (Pinky/Inky extrapolation) can legally produce
-// coordinates outside the grid; targets are never indexed directly, but
-// clamping keeps BFS from chasing an unreachable out-of-bounds cell.
 constexpr Vec2 clampToMap(Vec2 v) noexcept {
     if (v.x < 0) v.x = 0;
     else if (v.x >= Config::MAP_WIDTH) v.x = Config::MAP_WIDTH - 1;
@@ -201,7 +182,6 @@ constexpr Vec2 clampToMap(Vec2 v) noexcept {
     return v;
 }
 
-// Rendering colors and styles
 struct Color {
     uint8_t r = 0, g = 0, b = 0;
     constexpr bool operator==(const Color&) const = default;
@@ -217,7 +197,6 @@ struct Cell {
     constexpr bool operator==(const Cell&) const = default;
 };
 
-// Map Class definition & inline implementation
 namespace MapTemplates {
     inline constexpr std::array<const char*, 31> MAP_TEMPLATE_1 = {{
         "############################",
@@ -1244,7 +1223,7 @@ struct FloatingPopup {
     Vec2 pos;
     std::string text;
     Color fg;
-    int lifetime_ms = 600; // 600ms default
+    int lifetime_ms = 600;
 };
 
 struct Particle {
@@ -1253,24 +1232,20 @@ struct Particle {
     double vx;
     double vy;
     Color color;
-    int lifetime_ms = 400; // 400ms default
-    std::string glyph;     // optional custom glyph (fever ghost trails, etc.)
+    int lifetime_ms = 400;
+    std::string glyph;
 };
 
-// PACTERM Letter Hunt: collect the letters P-A-C-T-E-R-M across runs.
-// One letter spawns per level (Level 1='P' ... Level 7='M'); missed letters
-// are retried in sequential order after the cycle wraps. Collecting all seven
-// permanently unlocks the composite PacTerm+ theme.
 struct LetterHuntState {
     static constexpr int LETTER_COUNT = 7;
-    static constexpr int ACTIVE_MS = 20000; // a letter despawns after 20s
+    static constexpr int ACTIVE_MS = 20000;
     static constexpr uint8_t FULL_MASK = 0x7F;
 
-    uint8_t letter_mask = 0;   // bit 0='P' ... bit 6='M'
-    bool active = false;       // a letter is currently placed on the map
-    Vec2 pos{};                // spawned tile position
+    uint8_t letter_mask = 0;
+    bool active = false;
+    Vec2 pos{};
     TileType type = TileType::LetterP;
-    int timer_ms = 0;          // remaining lifetime of the active letter
+    int timer_ms = 0;
 
     bool isCollected(int idx) const {
         return idx >= 0 && idx < LETTER_COUNT && (letter_mask & (1u << idx)) != 0;
@@ -1283,41 +1258,30 @@ struct LetterHuntState {
     bool allCollected() const { return (letter_mask & FULL_MASK) == FULL_MASK; }
 };
 
-// Fever Time: triggered when all 4 ghosts are eaten during a single power
-// pellet fright window. 2.0x score multiplier that stacks multiplicatively
-// with the Letter Hunt double-score buff (4.0x combined).
 namespace FeverState {
     constexpr int DURATION_MS = 6000;
     constexpr double MULTIPLIER = 2.0;
 }
 
-// Base palette used by the PacTerm+ composite theme. Wall colors are stored
-// as a vertical gradient (top row -> bottom row) so the existing per-row
-// gradient rendering can interpolate between the two endpoints.
 struct ThemePalette {
-    Color wall_top;    // wall gradient at map row 0
-    Color wall_bottom; // wall gradient at map row MAP_HEIGHT-1
-    Color dot;         // dots & power pellets
-    Color pacman;      // Pac-Man body
-    Color ghost;       // ghost body (high-contrast pick)
-    Color hud;         // HUD / border accent
+    Color wall_top;
+    Color wall_bottom;
+    Color dot;
+    Color pacman;
+    Color ghost;
+    Color hud;
 };
 
-// PacTerm+ composite theme: walls, dots, ghosts and HUD use an equal mix of
-// every non-rainbow theme's accent color (Classic, Cyan, Green, Pink, Red,
-// Violet, Ice, Amber), averaged per RGB channel, so no single theme dominates.
-// Pac-Man keeps its signature Classic Yellow so it stays visible against the
-// blended backdrop (and matches the "PacTerm+" Pac-Man color option exactly).
 inline constexpr ThemePalette buildPacTermPlusTheme() {
     constexpr std::array<Color, 8> accents = {{
-        {255, 220, 0},    // Classic Yellow
-        {0, 255, 255},    // Cyan
-        {0, 255, 90},     // Green
-        {255, 120, 220},  // Pink
-        {255, 60, 60},    // Red
-        {170, 90, 255},   // Violet
-        {140, 225, 255},  // Ice
-        {255, 190, 60},   // Amber
+        {255, 220, 0},
+        {0, 255, 255},
+        {0, 255, 90},
+        {255, 120, 220},
+        {255, 60, 60},
+        {170, 90, 255},
+        {140, 225, 255},
+        {255, 190, 60},
     }};
     unsigned sum_r = 0, sum_g = 0, sum_b = 0;
     for (const auto& a : accents) {
@@ -1329,11 +1293,11 @@ inline constexpr ThemePalette buildPacTermPlusTheme() {
         static_cast<uint8_t>(sum_b / accents.size()),
     };
     return ThemePalette{
-        mix, mix,         // walls use the blended accent
-        mix,              // dots & power pellets
-        {255, 220, 0},    // Pac-Man body (Classic Yellow)
-        mix,              // ghost body
-        mix,              // HUD / border accent
+        mix, mix,
+        mix,
+        {255, 220, 0},
+        mix,
+        mix,
     };
 }
 
@@ -1346,7 +1310,6 @@ public:
     void loadFromTemplate(const std::array<const char*, 31>& templ, int levelNumber, bool mutate = true) {
         total_dots_ = 0;
 
-        // Deterministic PRNG seeded with levelNumber to mutate the template
         uint32_t prng = levelNumber * 81273 + 98213;
         auto rand_num = [&]() {
             prng = prng * 1664525 + 1013904223;
@@ -1373,25 +1336,19 @@ public:
         }
 
         if (mutate) {
-            // Mutate left half, then mirror (protecting essential zones)
             struct Coord { int x, y; };
             for (int y = 2; y < Config::MAP_HEIGHT - 2; ++y) {
                 for (int x = 2; x < 13; ++x) {
-                    // Protect ghost house
                     if (x >= 10 && y >= 12 && y <= 16) continue;
-                    // Protect Pacman spawn
                     if (y == 23 && x == 13) continue;
-                    // Protect tunnel row
                     if (y == Config::TUNNEL_ROW) continue;
 
                     uint32_t r = rand_num() % 100;
                     if (tiles_[y][x] == TileType::Wall) {
-                        // 10% chance to remove a wall to open up new pathways
                         if (r < 10) {
                             tiles_[y][x] = TileType::Empty;
                         }
                     } else if (tiles_[y][x] == TileType::Empty) {
-                        // 5% chance to add a wall block to create new shapes/obstacles
                         if (r < 5) {
                             tiles_[y][x] = TileType::Wall;
                         }
@@ -1401,24 +1358,22 @@ public:
         }
 
         if (mutate) {
-            // Mirror the left half to the right half
             for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
                 for (int x = 0; x < 14; ++x) {
                     tiles_[y][27 - x] = tiles_[y][x];
                 }
             }
 
-            // Populate path with Dots
             for (int y = 1; y < Config::MAP_HEIGHT - 1; ++y) {
                 for (int x = 1; x < Config::MAP_WIDTH - 1; ++x) {
                     if (x >= 10 && x <= 17 && y >= 12 && y <= 16) {
-                        continue; // Ghost house area
+                        continue;
                     }
                     if (y == Config::TUNNEL_ROW && (x < 6 || x > 21)) {
-                        continue; // Tunnel portals
+                        continue;
                     }
                     if (y == 23 && x == 13) {
-                        continue; // Pacman spawn
+                        continue;
                     }
 
                     if (tiles_[y][x] == TileType::Empty || tiles_[y][x] == TileType::Dot) {
@@ -1428,7 +1383,6 @@ public:
                 }
             }
 
-            // Setup 4 Power Pellets in the corners
             std::array<Vec2, 4> pellets = {{
                 {1, 3}, {26, 3}, {1, 23}, {26, 23}
             }};
@@ -1439,7 +1393,6 @@ public:
                 }
             }
         } else {
-            // For manual templates, count dots and power pellets exactly as defined
             for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
                 for (int x = 0; x < Config::MAP_WIDTH; ++x) {
                     if (tiles_[y][x] == TileType::Dot || tiles_[y][x] == TileType::PowerPellet) {
@@ -1493,22 +1446,16 @@ public:
                 default: loadFromTemplate(MapTemplates::MAP_TEMPLATE_1, levelNumber, false); break;
             }
         } else {
-            // Procedural generation (using improved algorithm!)
-            // Initialize all tiles as Wall
             for (auto& row : tiles_) {
                 row.fill(TileType::Wall);
             }
 
-            // Deterministic PRNG seeded with levelNumber
             uint32_t prng_state = levelNumber * 73821 + 528913;
             auto rand_num = [&]() {
                 prng_state = prng_state * 1664525 + 1013904223;
                 return prng_state;
             };
 
-            // Setup structured Ghost House in center (columns 10 to 17, rows 12 to 16)
-            // Left half of house setup:
-            // Set perimeter walls
             for (int y = 12; y <= 16; ++y) {
                 tiles_[y][10] = TileType::Wall;
             }
@@ -1519,23 +1466,19 @@ public:
             tiles_[12][13] = TileType::GhostDoor;
             tiles_[16][13] = TileType::Wall;
 
-            // Clear house interior
             for (int y = 13; y <= 15; ++y) {
                 for (int x = 11; x <= 13; ++x) {
                     tiles_[y][x] = TileType::Empty;
                 }
             }
 
-            // Pre-carve Pacman spawn exit path
             tiles_[23][13] = TileType::Empty;
 
-            // Left tunnel path
             for (int x = 0; x <= 5; ++x) {
                 tiles_[Config::TUNNEL_ROW][x] = TileType::Empty;
             }
             tiles_[Config::TUNNEL_ROW][0] = TileType::Tunnel;
 
-            // Run DFS maze carving on odd coordinates of left half (1 to 13)
             struct Coord { int x, y; };
             std::vector<Coord> stack;
 
@@ -1556,7 +1499,6 @@ public:
                 for (const auto& next : dirs) {
                     if (next.x >= 1 && next.x <= 13 && next.y >= 1 && next.y <= 29) {
                         if (tiles_[next.y][next.x] == TileType::Wall) {
-                            // Don't carve into the ghost house area (col 10-13, row 12-16)
                             if (!(next.x >= 10 && next.y >= 12 && next.y <= 16)) {
                                 neighbors.push_back(next);
                             }
@@ -1577,19 +1519,17 @@ public:
                 }
             }
 
-            // Ensure critical connections
             tiles_[22][13] = TileType::Empty;
             tiles_[23][13] = TileType::Empty;
             tiles_[23][12] = TileType::Empty;
             tiles_[23][11] = TileType::Empty;
 
             tiles_[10][13] = TileType::Empty;
-            tiles_[11][13] = TileType::Empty; // Path leading to ghost house entrance
+            tiles_[11][13] = TileType::Empty;
 
             tiles_[Config::TUNNEL_ROW][5] = TileType::Empty;
             tiles_[Config::TUNNEL_ROW][6] = TileType::Empty;
 
-            // --- Improved Algorithm: Remove Dead Ends to Create Loops ---
             for (int y = 2; y < Config::MAP_HEIGHT - 2; ++y) {
                 for (int x = 2; x < 13; ++x) {
                     if (tiles_[y][x] == TileType::Empty) {
@@ -1603,7 +1543,6 @@ public:
                         if (wall_count >= 3 && !wall_dirs.empty()) {
                             for (const auto& w : wall_dirs) {
                                 if (w.x > 0 && w.x < 13 && w.y > 0 && w.y < Config::MAP_HEIGHT - 1) {
-                                    // Don't carve into ghost house
                                     if (!(w.x >= 10 && w.y >= 12 && w.y <= 16)) {
                                         tiles_[w.y][w.x] = TileType::Empty;
                                         break;
@@ -1615,7 +1554,6 @@ public:
                 }
             }
 
-            // --- Improved Algorithm: Add Random Extra Loops (15% chance for horizontal/vertical merges) ---
             for (int y = 2; y < Config::MAP_HEIGHT - 2; ++y) {
                 for (int x = 2; x < 13; ++x) {
                     if (tiles_[y][x] == TileType::Wall) {
@@ -1636,25 +1574,23 @@ public:
                 }
             }
 
-            // Mirror the left half to the right half
             for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
                 for (int x = 0; x < 14; ++x) {
                     tiles_[y][27 - x] = tiles_[y][x];
                 }
             }
 
-            // Populate carved path with Dots
             total_dots_ = 0;
             for (int y = 1; y < Config::MAP_HEIGHT - 1; ++y) {
                 for (int x = 1; x < Config::MAP_WIDTH - 1; ++x) {
                     if (x >= 10 && x <= 17 && y >= 12 && y <= 16) {
-                        continue; // Ghost house area
+                        continue;
                     }
                     if (y == Config::TUNNEL_ROW && (x < 6 || x > 21)) {
-                        continue; // Tunnel portals
+                        continue;
                     }
                     if (y == 23 && x == 13) {
-                        continue; // Pacman spawn
+                        continue;
                     }
 
                     if (tiles_[y][x] == TileType::Empty) {
@@ -1664,7 +1600,6 @@ public:
                 }
             }
 
-            // Setup 4 Power Pellets in the corners
             std::array<Vec2, 4> pellets = {{
                 {1, 3}, {26, 3}, {1, 23}, {26, 23}
             }};
@@ -1753,10 +1688,10 @@ public:
             return t == TileType::Wall || t == TileType::GhostDoor;
         };
         uint8_t mask = 0;
-        if (pos.y > 0 && isWallOrDoor(pos.x, pos.y - 1)) mask |= 1;      // Up
-        if (pos.x < Config::MAP_WIDTH - 1 && isWallOrDoor(pos.x + 1, pos.y)) mask |= 2; // Right
-        if (pos.y < Config::MAP_HEIGHT - 1 && isWallOrDoor(pos.x, pos.y + 1)) mask |= 4; // Down
-        if (pos.x > 0 && isWallOrDoor(pos.x - 1, pos.y)) mask |= 8;     // Left
+        if (pos.y > 0 && isWallOrDoor(pos.x, pos.y - 1)) mask |= 1;
+        if (pos.x < Config::MAP_WIDTH - 1 && isWallOrDoor(pos.x + 1, pos.y)) mask |= 2;
+        if (pos.y < Config::MAP_HEIGHT - 1 && isWallOrDoor(pos.x, pos.y + 1)) mask |= 4;
+        if (pos.x > 0 && isWallOrDoor(pos.x - 1, pos.y)) mask |= 8;
         return mask;
     }
 
@@ -1766,16 +1701,11 @@ private:
     int remaining_dots_ = 0;
 };
 
-// Base Entity Class
 class Entity {
 public:
     Vec2 position;
     Direction currentDirection = Direction::None;
     Direction requestedDirection = Direction::None;
-
-    bool isMoving() const {
-        return currentDirection != Direction::None;
-    }
 
     virtual void reset() = 0;
     virtual ~Entity() = default;

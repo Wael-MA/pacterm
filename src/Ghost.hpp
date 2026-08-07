@@ -10,7 +10,7 @@ public:
     GhostPersonality personality;
     GhostMode mode = GhostMode::InHouse;
 
-    int dotCounter = 0;      // for ghost house release logic
+    int dotCounter = 0;
 
     Ghost(GhostPersonality personality)
         : personality(personality) {
@@ -26,7 +26,6 @@ public:
         switch (personality) {
             case GhostPersonality::Blinky:
                 spawn_position_ = Config::BLINKY_SPAWN;
-                // Blinky starts outside the house
                 mode = GhostMode::Scatter;
                 currentDirection = Direction::Left;
                 break;
@@ -50,7 +49,6 @@ public:
         return getOppositeDirection(currentDirection);
     }
 
-    // Frightened timer setup
     void frighten(int duration_ms) {
         if (mode != GhostMode::Eaten) {
             mode = GhostMode::Frightened;
@@ -64,7 +62,6 @@ public:
             frightened_remaining_ -= delta_ms;
             if (frightened_remaining_ <= 0) {
                 frightened_remaining_ = 0;
-                // Transition will be fully handled by GameEngine (reverts to current wave mode)
                 mode = GhostMode::Chase;
             }
         }
@@ -74,7 +71,6 @@ public:
         return mode == GhostMode::Frightened && frightened_remaining_ <= Config::FRIGHTENED_FLASH_AT;
     }
 
-    // For eaten mode: set target to ghost house
     void setEaten() {
         mode = GhostMode::Eaten;
         frightened_remaining_ = 0;
@@ -87,7 +83,7 @@ public:
     void exitHouse() {
         if (mode == GhostMode::InHouse) {
             position = Config::GHOST_HOUSE_EXIT;
-            mode = GhostMode::Scatter; // Default back to active mode
+            mode = GhostMode::Scatter;
             currentDirection = Direction::Left;
         }
     }
