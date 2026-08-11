@@ -1,6 +1,6 @@
-# PacTerm - Terminal Pac-Man V1.3.5
+# PacTerm - Terminal Pac-Man V1.3.7
 
-A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, avoid ghosts, and chase high scores in your terminal.
+A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, avoid ghosts, and chase high scores right in your terminal.
 
 - **Website**: [https://wael.work.gd/pacterm](https://wael.work.gd/pacterm)
 
@@ -8,18 +8,36 @@ A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, 
 
 - **Classic Pac-Man Gameplay**: Navigate mazes, eat pellets, avoid ghosts, and collect power pellets
 - **Terminal-Based**: Runs in any modern terminal with Unicode support
-- **Multiple Ghost AI**: Each ghost has unique behavior (chase, scatter, frightened modes)
+- **Multiple Ghost AI**: Each ghost has its own behavior (chase, scatter, frightened modes)
 - **High Score System**: Persistent high scores saved locally
-- **Sound Effects**: Optional terminal bell sounds for actions
+- **Sound Effects**: Procedurally generated WAV effects played through `paplay`/`pw-play`/`mpg123`/`mpv` (can be muted with `M`)
 - **Multiple Levels**: Progressive difficulty with increasing ghost speed
 - **Responsive Controls**: Smooth keyboard controls (WASD / ZQSD / Arrow / Vim keys)
 - **PACTERM Letter Hunt**: Collect the hidden `P-A-C-T-E-R-M` letters each level (20s despawn) to unlock the **PacTerm+** composite theme and more
-- **PacTerm+ Theme**: A dynamic composite theme blending the best of every color scheme; unlock it by collecting all 7 letters
-- **Themes**: Unlockable palette (Classic, Cyan, Green, Pink, Red, Violet, Ice, Amber, Rainbow, PacTerm+)
-- **Fever Time**: Chaining 4 ghosts in one power pellet eats triggers Fever x2 scoring with ghost trails
-- **Letter Buffs**: Collecting a letter grants ghost freeze, a speed boost, and a temporary 2× score multiplier
-- **Level Rating**: Each cleared level is rated 0–10 with a bonus of rating × 1000 pts
-- **Cheat Code**: Enter `WAEL` in the redeem menu to unlock all levels, Rainbow, and PacTerm+
+- **PacTerm+ Theme**: A dynamic composite theme blending the best of every color scheme into two dual gradients (a warm primary mix and a cool accent mix); unlock it by collecting all 7 letters
+- **Themes**: Unlockable two-color dual-gradient palettes (Classic, Cyan, Green, Pink, Red, Violet, Ice, Amber, Rainbow, PacTerm+)
+- **Fever Time**: Chain 4 ghosts on one power pellet to trigger Fever x2 scoring with ghost trails
+- **Letter Buffs**: Collecting a letter grants ghost freeze, a speed boost, and a temporary 2x score multiplier
+- **Level Rating**: Each cleared level is rated 0 to 10 with a bonus of rating x 1000 pts
+
+## Themes
+
+Each unlockable theme restyles the menus, the HUD, and Pac-Man himself. Unlock them by reaching the matching level group in the Settings menu. Every theme is a **two-color duality**: a *primary* gradient drives Pac-Man, the PACTERM logo, and the HUD text, while a complementary *accent* gradient drives menu borders, walls, and dots.
+
+| Theme | Unlocked At | Two-Color Duo |
+|-------|-------------|---------------|
+| **Classic** | Default | The classic duo. Golden-yellow primary with cyan accents on borders, walls, and dots. |
+| **Cyan** | Level 5 | Neon duo. Cyan primary with coral-red accents. |
+| **Green** | Level 9 | Fresh duo. Green primary with magenta accents. |
+| **Pink** | Level 13 | Sweet duo. Pink primary with mint-green accents. |
+| **Red** | Level 17 | Hot duo. Red primary with teal accents. |
+| **Violet** | Level 21 | Arcane duo. Violet primary with golden accents. |
+| **Ice** | Level 24 | Chilled duo. Ice-blue primary with deep ocean-blue accents. |
+| **Amber** | Level 27 | Warm duo. Amber primary with indigo accents. |
+| **Rainbow** | All Levels | Full spectrum. Both the primary and accent families shimmer through every hue. |
+| **PacTerm+** | All 7 letters | Composite duo. Blends all 8 color schemes into a warm **primary mix** and a cool **accent mix** for Pac-Man, menus, and the HUD. |
+
+> **Note:** Levels 20 and 30 use the special **Glitch** theme, a flickering, corrupting maze with chaos-based powerups.
 
 ## Install Compiled Binary for Arch Linux
 ```bash
@@ -30,7 +48,6 @@ yay -S pacterm-bin
 
 - C++20 compatible compiler (GCC 10+, Clang 12+, MSVC 19.28+)
 - Terminal with Unicode/UTF-8 support
-- ncurses (optional, for enhanced terminal control)
 - CMake 3.16+ or Make
 
 ## Building
@@ -78,10 +95,13 @@ sudo cp pacterm /usr/local/bin/
 ./pacterm
 
 # Run with automatic install to PATH (for Linux and MacOS)
-./pacterm install
+./pacterm --install
 
-# Unistall the game from PATH (for Linux and MacOS)
-./pacterm delete
+# Uninstall the game from PATH (for Linux and MacOS)
+./pacterm --delete
+
+# Print version
+./pacterm --version
 ```
 
 ### Controls
@@ -108,10 +128,10 @@ sudo cp pacterm /usr/local/bin/
   - Power Pellet: 50 pts
   - Ghost (1st): 200 pts, (2nd): 400 pts, (3rd): 800 pts, (4th): 1600 pts
   - Letter Hunt: 1000 pts + buffs per letter
-  - Level Rating: rating (0–10) × 1000 pts
-- **Fever Time**: Chain 4 ghosts in one power pellet for 2× scoring for 6 seconds
-- **Letter Hunt**: The expected letter (`P` on level 1, `A` on level 2, … `M` on level 7, then repeats) spawns on a reachable tile for 20 seconds. Collect all 7 to unlock PacTerm+
-- **Level Rating**: `par = 45s + 0.15s × dots`; each death costs 2.5, every 10s over par costs 1
+  - Level Rating: rating (0 to 10) x 1000 pts
+- **Fever Time**: Chain 4 ghosts in one power pellet for 2x scoring for 6 seconds
+- **Letter Hunt**: The expected letter (`P` on level 1, `A` on level 2, ... `M` on level 7, then repeats) spawns on a reachable tile for 20 seconds. Collect all 7 to unlock PacTerm+
+- **Level Rating**: `par = 45s + 0.15s x dots`; each death costs 2.5, every 10s over par costs 1
 
 ## Building from Source
 
@@ -119,16 +139,16 @@ sudo cp pacterm /usr/local/bin/
 
 ```bash
 # Ubuntu/Debian
-sudo apt-get install build-essential cmake libncurses5-dev
+sudo apt-get install build-essential cmake
 
 # Fedora
-sudo dnf install gcc-c++ cmake ncurses-devel
+sudo dnf install gcc-c++ cmake
 
 # Arch
-sudo pacman -S base-devel cmake ncurses
+sudo pacman -S base-devel cmake
 
 # macOS
-brew install cmake ncurses
+brew install cmake
 ```
 
 ### Build Types
@@ -152,7 +172,6 @@ pacterm/
 ├── build.sh            # Simple build script
 ├── LICENSE             # GPL-3.0 License
 ├── README.md           # This file
-├── pacterm.keys        # Key configuration
 ├── pacterm             # Compiled binary (after build)
 ├── src/
 │   ├── main.cpp        # Entry point
@@ -165,22 +184,12 @@ pacterm/
 ```
 
 Runtime data is stored under `~/.pacterm/`:
-- `pacterm.cache` — scores, settings, stats
-- `sounds/` — generated sound effects (fallback to terminal bell)
+- `pacterm.cache`: scores, settings, keybindings, stats
+- `sounds/`: generated sound effects
 
 ## Configuration
 
-Key bindings can be customized by editing `pacterm.keys`:
-
-```ini
-UP=KEY_UP
-DOWN=KEY_DOWN
-LEFT=KEY_LEFT
-RIGHT=KEY_RIGHT
-PAUSE=p
-QUIT=q
-SOUND=m
-```
+Key bindings are remappable in-game via **Settings > Configure Keys**; choices persist in `~/.pacterm/pacterm.cache`.
 
 ## High Scores
 
@@ -209,21 +218,20 @@ Contributions are welcome! Please follow these steps:
 
 - Follow C++20 best practices and modern C++ idioms
 - Maintain `-Wall -Wextra -Wpedantic -Werror` clean builds
-- Format code with `clang-format` (config in `.clang-format`)
 - Write tests for new features
 - Update documentation for user-facing changes
 
-### Code Style
-
-```bash
-# Format code
-clang-format -i src/*.cpp src/*.hpp
-
-# Static analysis
-clang-tidy src/*.cpp -- -std=c++20 -Isrc
-```
-
 ## Changelog
+
+### v1.3.7
+- **Cleanup**: Unified the version string across all files, renamed the CMake target to `pacterm`, and aligned the README with what the code actually does (CLI flags, sound backend, key configuration)
+- **Bug fix**: Mouse hover highlight no longer sticks after the cursor leaves a menu entry; the map generator now protects the full ghost-house region
+- **Performance**: Eliminated per-glyph allocations in the text renderer and redundant viewport recalculations in the frame loop
+
+### v1.3.6
+- **UI**: Redesigned the Pause and Developer menus, titles are now embedded in the box border, with cleaner, left-aligned layouts
+- **Bug fix**: Fixed 2 unreachable dots on level 18
+- **Docs**: Added a Themes reference describing every unlockable theme's specialty 
 
 ### v1.3.5
 - **Performance**: Fixed lag spikes when the frame rate drops (delta is now clamped), and cut per-frame allocations in the renderer (theme palettes and glitch glyphs are built once per frame instead of once per cell)
@@ -232,11 +240,11 @@ clang-tidy src/*.cpp -- -std=c++20 -Isrc
 - **Cleanup**: Removed dead code (unused keybinding loader, legacy `Fruit` tile, unused animation/PRNG helpers) and made timer naming consistent
 
 ### v1.3.4
-- Added Fever Time, Letter Hunt buffs, dynamic level rating, `WAEL` cheat code, and the PacTerm+ composite theme
+- Added Fever Time, Letter Hunt buffs, dynamic level rating, and the PacTerm+ composite theme
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU General Public License v3.0**. See the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 

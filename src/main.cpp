@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.5
+// pacterm v1.3.7
 #include "GameEngine.hpp"
 #include <iostream>
 #include <string>

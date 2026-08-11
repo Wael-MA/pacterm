@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.5
+// pacterm v1.3.7
 #pragma once
 
 #include "Types.hpp"
@@ -11,7 +11,6 @@
 #include <random>
 #include <string>
 #include <vector>
-#include <chrono>
 #include <termios.h>
 #include <csignal>
 #include <unordered_map>
@@ -24,6 +23,39 @@ enum class GameAction : uint8_t {
     Left  = 3,
     Right = 4,
     Pause = 5
+};
+
+enum class LevelTheme : uint8_t {
+    Classic = 0,
+    Cyan    = 1,
+    Green   = 2,
+    Pink    = 3,
+    Red     = 4,
+    Glitch  = 5,
+    Violet  = 6,
+    Ice     = 7,
+    Amber   = 8,
+};
+
+enum class PowerupKind : uint8_t {
+    None         = 0,
+    PacSpeed     = 1,
+    GhostSlow    = 2,
+    DotBonus     = 3,
+    PelletBonus  = 4,
+    GhostBonus   = 5,
+    DashRapid    = 6,
+    LavaResist   = 7,
+    BlitzBounty  = 8,
+    FreezeLinger = 9,
+    WarpStun     = 10,
+    GlitchLuck   = 11,
+    GlitchWarp   = 12,
+};
+
+struct Powerup {
+    const char* name = nullptr;
+    PowerupKind kind = PowerupKind::None;
 };
 
 struct AnimationController {
@@ -160,17 +192,19 @@ private:
     void fillRow(int row, Color fg, Color bg);
     static size_t utf8SequenceLength(unsigned char c) noexcept;
     size_t glyphCount(const std::string& text) const noexcept;
+    size_t displayWidth(const std::string& text) const noexcept;
     void drawString(int row, int col, const std::string& text, Color fg, Color bg = {0,0,0}, bool bold = false);
     void drawGradientString(int row, int col, const std::string& text, Color start_fg, Color end_fg, Color bg = {0,0,0});
     void drawBox(int row, int col, int w, int h, Color fg, Color bg = {0,0,0});
     void drawDoubleBorderBox(int row, int col, int w, int h, Color fg, Color bg = {0,0,0});
+    void drawTitleBorderBox(int row, int col, int w, int h, const std::string& title, Color fg, Color bg = {0,0,0});
     void clearBuffer(Color bg = {0, 0, 0});
     void presentFrame();
 
-    void renderMap(const ThemePalette& ptp);
-    void renderEntities(const ThemePalette& ptp);
-    void renderHUD(const ThemePalette& ptp);
-    void renderEffects();
+    void renderMap(const Viewport* vp = nullptr);
+    void renderEntities(const Viewport* vp = nullptr);
+    void renderHUD();
+    void renderEffects(const Viewport* vp = nullptr);
     void renderMainMenu();
     void renderSettings();
     void renderRedeem();
@@ -205,6 +239,7 @@ private:
     int selected_general_theme_ = 0;
     int settings_selection_ = 0;
     bool apply_menu_theme_ = false;
+    bool menu_accent_ = false;
     std::string username_ = "Wael";
     std::string input_username_ = "";
     std::string redeem_input_ = "";
@@ -217,11 +252,33 @@ private:
     int power_pellets_ = 0;
     int time_played_ms_ = 0;
     Color getRainbowColor(double offset) const;
-    Color pacManColor() const;
-    Color tileAccentColor(int x, int y, const ThemePalette& ptp) const;
+    Color themePrimary(int theme, double offset) const;
+    Color themeAccent(int theme, double offset) const;
+    Color pacManColor(double offset) const;
+    Color tileAccentColor(int x, int y) const;
     Color applyGeneralTheme(Color fg, int row, int col) const;
+    Color applyGeneralThemeGradient(Color fg, int row, int col, bool is_gradient_start) const;
+
+    enum class BrightnessTier : uint8_t { VeryDim, Dim, Normal, Bright, VeryBright };
+    BrightnessTier getBrightnessTier(Color fg) const;
+    Color applyGeneralThemeImpl(Color fg, double offset) const;
     bool isColorLocked(int color_idx) const;
     bool isGlitchZone(int x, int y) const;
+
+    LevelTheme themeForLevel(int lvl) const;
+    Color levelThemeColor(int lvl) const;
+    bool hasPowerup(PowerupKind kind) const;
+    void loadThemePowerups();
+    std::vector<Vec2> reachableTiles() const;
+
+    LevelTheme current_theme_ = LevelTheme::Classic;
+    std::array<Powerup, 2> current_powerups_{};
+
+    int lava_resist_cooldown_ms_ = 0;
+    bool lava_resist_active_ = false;
+    int lava_resist_window_ms_ = 0;
+    int warp_stun_timer_ms_ = 0;
+    int glitch_warp_timer_ms_ = 0;
 
     Vec2 portal_A1_ = {0, 0};
     Vec2 portal_A2_ = {0, 0};

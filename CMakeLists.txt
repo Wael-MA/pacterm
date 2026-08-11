@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.16)
-project(terminal-pacman VERSION 1.3.5 LANGUAGES CXX)
+project(pacterm VERSION 1.3.7 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(pacman
+add_executable(pacterm
     src/main.cpp
     src/GameEngine.cpp
 )
 
-target_include_directories(pacman PRIVATE src)
-target_compile_options(pacman PRIVATE -Wall -Wextra -Wpedantic -Werror)
+target_include_directories(pacterm PRIVATE src)
+target_compile_options(pacterm PRIVATE -Wall -Wextra -Wpedantic -Werror)

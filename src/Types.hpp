@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.5
+// pacterm v1.3.7
 #pragma once
 
 #include <cstdint>
@@ -137,7 +137,7 @@ namespace Config {
 
     inline constexpr int INITIAL_LIVES = 3;
 
-    inline constexpr const char* PACTERM_VERSION = "1.3.5";
+    inline constexpr const char* PACTERM_VERSION = "1.3.7";
 
     inline constexpr int THEME_COUNT = 10;
     inline constexpr int PACTERM_PLUS_THEME = 9;
@@ -786,7 +786,7 @@ namespace MapTemplates {
         "#.##.#####.######.#####.##.#",
         "#.##.#####.######.#####.##.#",
         "#..........##..##..........#",
-        "######.##### ## #####.######",
+        "######.#####    #####.######",
         "     #.##### ## #####.#     ",
         "     #.##          ##.#     ",
         "     #.## ###--### ##.#     ",
@@ -1263,44 +1263,6 @@ namespace FeverState {
     constexpr double MULTIPLIER = 2.0;
 }
 
-struct ThemePalette {
-    Color wall_top;
-    Color wall_bottom;
-    Color dot;
-    Color pacman;
-    Color ghost;
-    Color hud;
-};
-
-inline constexpr ThemePalette buildPacTermPlusTheme() {
-    constexpr std::array<Color, 8> accents = {{
-        {255, 220, 0},
-        {0, 255, 255},
-        {0, 255, 90},
-        {255, 120, 220},
-        {255, 60, 60},
-        {170, 90, 255},
-        {140, 225, 255},
-        {255, 190, 60},
-    }};
-    unsigned sum_r = 0, sum_g = 0, sum_b = 0;
-    for (const auto& a : accents) {
-        sum_r += a.r; sum_g += a.g; sum_b += a.b;
-    }
-    const Color mix = {
-        static_cast<uint8_t>(sum_r / accents.size()),
-        static_cast<uint8_t>(sum_g / accents.size()),
-        static_cast<uint8_t>(sum_b / accents.size()),
-    };
-    return ThemePalette{
-        mix, mix,
-        mix,
-        {255, 220, 0},
-        mix,
-        mix,
-    };
-}
-
 class Map {
 public:
     Map() {
@@ -1336,10 +1298,10 @@ public:
         }
 
         if (mutate) {
-            struct Coord { int x, y; };
             for (int y = 2; y < Config::MAP_HEIGHT - 2; ++y) {
                 for (int x = 2; x < 13; ++x) {
                     if (x >= 10 && y >= 12 && y <= 16) continue;
+                    if (27 - x >= 10 && 27 - x <= 17 && y >= 12 && y <= 16) continue;
                     if (y == 23 && x == 13) continue;
                     if (y == Config::TUNNEL_ROW) continue;
 
