@@ -255,8 +255,8 @@ This project is licensed under the **GNU General Public License v3.0**. See the 
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/wa-el-az/pacterm/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/wa-el-az/pacterm/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Wael-MA/pacterm/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Wael-MA/pacterm/discussions)
 
 ---
 

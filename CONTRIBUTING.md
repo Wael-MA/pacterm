@@ -75,7 +75,7 @@ brew install cmake clang-format
 3. **Add the upstream remote** (to stay in sync with the main repository):
 
    ```bash
-   git remote add upstream https://github.com/wa-el-az/pacterm.git
+   git remote add upstream https://github.com/Wael-MA/pacterm.git
    git fetch upstream
    ```
 
@@ -169,9 +169,9 @@ clang-tidy src/*.cpp -p build -- -std=c++20 -Isrc
 ### Reporting Bugs
 
 > **Before reporting a bug**, please:
-> 1. Check the [existing issues](https://github.com/wa-el-az/pacterm/issues)
+> 1. Check the [existing issues](https://github.com/Wael-MA/pacterm/issues)
 >    to avoid duplicates.
-> 2. Check the [Discussions](https://github.com/wa-el-az/pacterm/discussions)
+> 2. Check the [Discussions](https://github.com/Wael-MA/pacterm/discussions)
 >    for known problems or workarounds.
 > 3. Make sure you are on the latest release.
 
@@ -191,8 +191,8 @@ report includes:
 
 We welcome new feature suggestions! Before proposing:
 
-1. Search [existing issues](https://github.com/wa-el-az/pacterm/issues) and
-   [Discussions](https://github.com/wa-el-az/pacterm/discussions) for prior
+1. Search [existing issues](https://github.com/Wael-MA/pacterm/issues) and
+   [Discussions](https://github.com/Wael-MA/pacterm/discussions) for prior
    requests.
 2. Open an issue using the
    **[Feature Request template](.github/ISSUE_TEMPLATE/feature_request.md)**,
