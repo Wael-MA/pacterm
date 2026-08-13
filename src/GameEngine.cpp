@@ -84,6 +84,111 @@ static int clampKeyCode(int k) noexcept {
     return 0;
 }
 
+static size_t utf8SeqLength(unsigned char c) noexcept {
+    if (c >= 0xf0) return 4;
+    if (c >= 0xe0) return 3;
+    if (c >= 0xc0) return 2;
+    return 1;
+}
+
+// Decode the UTF-8 codepoint starting at text[i] (len bytes).
+static uint32_t decodeUTF8(const std::string& text, size_t i, size_t len) noexcept {
+    const unsigned char* p = reinterpret_cast<const unsigned char*>(text.data()) + i;
+    switch (len) {
+        case 1: return p[0];
+        case 2: return ((p[0] & 0x1Fu) << 6) | (p[1] & 0x3Fu);
+        case 3: return ((p[0] & 0x0Fu) << 12) | ((p[1] & 0x3Fu) << 6) | (p[2] & 0x3Fu);
+        case 4: return ((p[0] & 0x07u) << 18) | ((p[1] & 0x3Fu) << 12) | ((p[2] & 0x3Fu) << 6) | (p[3] & 0x3Fu);
+    }
+    return p[0];
+}
+
+// Terminal column width of a single decoded codepoint (0 == zero-width).
+static size_t codepointWidth(uint32_t cp) noexcept {
+    if (cp == 0x0483 ||
+        (cp >= 0x0300 && cp <= 0x036F) ||
+        (cp >= 0x1AB0 && cp <= 0x1AFF) ||
+        (cp >= 0x1DC0 && cp <= 0x1DFF) ||
+        (cp >= 0x20D0 && cp <= 0x20FF) ||
+        (cp >= 0xFE00 && cp <= 0xFE0F))
+        return 0;
+
+    // Classic East Asian Wide/Fullwidth ranges.
+    if ((cp >= 0x1100 && cp <= 0x115F) ||
+        (cp >= 0x2329 && cp <= 0x232A) ||
+        (cp >= 0x2E80 && cp <= 0x303E) ||
+        (cp >= 0x3041 && cp <= 0x33FF) ||
+        (cp >= 0x3400 && cp <= 0x4DBF) ||
+        (cp >= 0x4E00 && cp <= 0x9FFF) ||
+        (cp >= 0xA000 && cp <= 0xA4CF) ||
+        (cp >= 0xA960 && cp <= 0xA97F) ||
+        (cp >= 0xAC00 && cp <= 0xD7A3) ||
+        (cp >= 0xF900 && cp <= 0xFAFF) ||
+        (cp >= 0xFE10 && cp <= 0xFE19) ||
+        (cp >= 0xFE30 && cp <= 0xFE6F) ||
+        (cp >= 0xFF00 && cp <= 0xFF60) ||
+        (cp >= 0xFFE0 && cp <= 0xFFE6) ||
+        (cp >= 0x20000 && cp <= 0x3FFFD))
+        return 2;
+
+    // Supplementary-plane emoji blocks render two columns wide.
+    if (cp >= 0x1F000 && cp <= 0x1FAFF) return 2;
+
+    // East Asian "Wide" symbols inside the else single-column Misc-Symbols and
+    // Dingbats blocks (matches glibc wcwidth on a UTF-8 locale, e.g. ⚡).
+    if ((cp >= 0x231A && cp <= 0x231B) ||
+        (cp >= 0x23E9 && cp <= 0x23EC) ||
+        cp == 0x23F0 || cp == 0x23F3 ||
+        (cp >= 0x25FD && cp <= 0x25FE) ||
+        (cp >= 0x2614 && cp <= 0x2615) ||
+        (cp >= 0x2630 && cp <= 0x2637) ||
+        (cp >= 0x2648 && cp <= 0x2653) ||
+        cp == 0x267F ||
+        (cp >= 0x268A && cp <= 0x268F) ||
+        cp == 0x2693 ||
+        cp == 0x26A1 ||
+        (cp >= 0x26AA && cp <= 0x26AB) ||
+        (cp >= 0x26BD && cp <= 0x26BE) ||
+        (cp >= 0x26C4 && cp <= 0x26C5) ||
+        cp == 0x26CE || cp == 0x26D4 || cp == 0x26EA ||
+        (cp >= 0x26F2 && cp <= 0x26F3) ||
+        cp == 0x26F5 || cp == 0x26FA || cp == 0x26FD ||
+        cp == 0x2705 ||
+        (cp >= 0x270A && cp <= 0x270B) ||
+        cp == 0x2728 ||
+        cp == 0x274C || cp == 0x274E ||
+        (cp >= 0x2753 && cp <= 0x2755) ||
+        cp == 0x2757 ||
+        (cp >= 0x2795 && cp <= 0x2797) ||
+        cp == 0x27B0 || cp == 0x27BF ||
+        (cp >= 0x2B1B && cp <= 0x2B1C) ||
+        cp == 0x2B50 || cp == 0x2B55)
+        return 2;
+
+    return 1;
+}
+
+// Display width of the UTF-8 sequence beginning at text[i]. A trailing
+// variation selector (U+FE0F) is consumed with its base so "❄️" is treated as
+// one two-column glyph instead of "1 + zero-width". Sets *consumed to the
+// number of bytes the glyph unit occupies.
+static size_t seqWidth(const std::string& text, size_t i, size_t* consumed) noexcept {
+    size_t len = utf8SeqLength(static_cast<unsigned char>(text[i]));
+    if (i + len > text.size()) len = text.size() - i;
+    *consumed = len;
+
+    const bool vs16 = i + len + 3 <= text.size() &&
+        static_cast<unsigned char>(text[i + len]) == 0xEF &&
+        static_cast<unsigned char>(text[i + len + 1]) == 0xB8 &&
+        static_cast<unsigned char>(text[i + len + 2]) == 0x8F;
+
+    if (vs16) {
+        *consumed = len + 3;
+        return 2;
+    }
+    return codepointWidth(decodeUTF8(text, i, len));
+}
+
 void GameEngine::restoreTerminalForSignal() {
     if (signal_term_restored_) return;
     signal_term_restored_ = true;
@@ -1931,14 +2036,14 @@ size_t GameEngine::glyphCount(const std::string& text) const noexcept {
     return count;
 }
 
-// Terminal display width: most glyphs occupy one column, but 3/4-byte
-// UTF-8 codepoints (emoji, CJK, etc.) render as two.
+// Terminal display width of the text, matching how the terminal lays out each
+// UTF-8 glyph (emoji, CJK, etc. occupy two columns; VS16 pairs count as one).
 size_t GameEngine::displayWidth(const std::string& text) const noexcept {
     size_t w = 0;
     for (size_t i = 0; i < text.size(); ) {
-        size_t len = utf8SequenceLength(static_cast<unsigned char>(text[i]));
-        w += (len >= 3) ? 2 : 1;
-        i += len;
+        size_t consumed = 0;
+        w += seqWidth(text, i, &consumed);
+        i += consumed;
     }
     return w;
 }
@@ -1946,25 +2051,39 @@ size_t GameEngine::displayWidth(const std::string& text) const noexcept {
 void GameEngine::drawString(int row, int col, const std::string& text, Color fg, Color bg, bool bold) {
     int current_col = col;
     for (size_t i = 0; i < text.size() && current_col < render_width_; ) {
-        size_t len = utf8SequenceLength(text[i]);
-        if (i + len > text.size()) len = text.size() - i;
+        size_t consumed = 0;
+        size_t width = seqWidth(text, i, &consumed);
+        if (i + consumed > text.size()) consumed = text.size() - i;
 
         Cell cell;
-        cell.glyph.assign(text, i, len);
+        cell.glyph.assign(text, i, consumed);
         cell.fg = fg;
         cell.bg = bg;
         cell.bold = bold;
 
         setCell(row, current_col, cell);
-        current_col++;
-        i += len;
+        // A two-column glyph also occupies the following column in the
+        // terminal. Reserve those cells (empty "continuation" cells skipped by
+        // presentFrame) so later characters stay column-aligned.
+        for (size_t k = 1; k < width; ++k) {
+            Cell pad;
+            pad.glyph = "";
+            pad.fg = fg;
+            pad.bg = bg;
+            pad.bold = bold;
+            setCell(row, current_col + static_cast<int>(k), pad);
+        }
+        current_col += static_cast<int>(width);
+        i += consumed;
     }
 }
 
 void GameEngine::drawGradientString(int row, int col, const std::string& text, Color start_fg, Color end_fg, Color bg) {
     size_t glyph_count = 0;
     for (size_t i = 0; i < text.size(); ) {
-        i += utf8SequenceLength(text[i]);
+        size_t consumed = 0;
+        seqWidth(text, i, &consumed);
+        i += consumed;
         ++glyph_count;
     }
     if (glyph_count == 0) return;
@@ -1972,12 +2091,13 @@ void GameEngine::drawGradientString(int row, int col, const std::string& text, C
     int current_col = col;
     size_t idx = 0;
     for (size_t i = 0; i < text.size() && current_col < render_width_; ) {
-        size_t len = utf8SequenceLength(text[i]);
-        if (i + len > text.size()) len = text.size() - i;
+        size_t consumed = 0;
+        size_t width = seqWidth(text, i, &consumed);
+        if (i + consumed > text.size()) consumed = text.size() - i;
 
         double ratio = glyph_count > 1 ? static_cast<double>(idx) / (glyph_count - 1) : 0.0;
         Cell cell;
-        cell.glyph.assign(text, i, len);
+        cell.glyph.assign(text, i, consumed);
         cell.fg = {
             static_cast<uint8_t>(start_fg.r + ratio * (end_fg.r - start_fg.r)),
             static_cast<uint8_t>(start_fg.g + ratio * (end_fg.g - start_fg.g)),
@@ -1985,8 +2105,15 @@ void GameEngine::drawGradientString(int row, int col, const std::string& text, C
         };
         cell.bg = bg;
         setCell(row, current_col, cell);
-        current_col++;
-        i += len;
+        for (size_t k = 1; k < width; ++k) {
+            Cell pad;
+            pad.glyph = "";
+            pad.fg = cell.fg;
+            pad.bg = bg;
+            setCell(row, current_col + static_cast<int>(k), pad);
+        }
+        current_col += static_cast<int>(width);
+        i += consumed;
         ++idx;
     }
 }
@@ -2083,6 +2210,9 @@ void GameEngine::presentFrame() {
     for (int r = 0; r < render_height_; ++r) {
         for (int c = 0; c < render_width_; ++c) {
             const Cell& back = back_buffer_[r][c];
+            // Continuation cells of a two-column glyph (empty glyph) are fully
+            // covered by that glyph in the terminal; never write to them.
+            if (back.glyph.empty()) continue;
             const Cell& front = front_buffer_[r][c];
 
             if (fade_active || back != front) {
@@ -2645,9 +2775,10 @@ void GameEngine::renderHUD() {
         powerup_color = {100, 255, 255};
     }
     if (!powerup_str.empty()) {
-        // Center with display width, not byte length. Emoji render as two
-        // terminal columns but are single codepoints, so length() both
-        // mis-centers and lets long strings overrun into the HIGH score.
+        // Center with terminal display width, not byte length. Wide emoji
+        // occupy two columns (their continuation cells are covered by the
+        // glyph itself), so displayWidth keeps the string centered and away
+        // from the HIGH score instead of overrunning into it.
         const int w = static_cast<int>(displayWidth(powerup_str));
         int start_col = center_col - w / 2;
         const int max_col = render_width_ - static_cast<int>(high_str.size()) - 2 - w;
