@@ -7,17 +7,15 @@
 
 class PacMan : public Entity {
 public:
-    PacMan() {
-        reset();
-    }
+    PacMan() { reset(); }
 
     void reset() override {
-        spawn_position_ = Config::PACMAN_SPAWN;
-        position = spawn_position_;
-        currentDirection = Direction::Left;
+        spawn_position_    = Config::PACMAN_SPAWN;
+        position           = spawn_position_;
+        currentDirection   = Direction::Left;
         requestedDirection = Direction::None;
-        alive_ = true;
-        anim_frame_ = 0;
+        alive_             = true;
+        anim_frame_        = 0;
     }
 
     bool tryMove(const Map& map) {
@@ -26,7 +24,7 @@ public:
         if (requestedDirection != Direction::None) {
             Vec2 next_pos = position + directionToVec2(requestedDirection);
             if (map.isWalkable(next_pos)) {
-                currentDirection = requestedDirection;
+                currentDirection   = requestedDirection;
                 requestedDirection = Direction::None;
             }
         }
@@ -35,7 +33,7 @@ public:
             Vec2 next_pos = position + directionToVec2(currentDirection);
             if (map.isWalkable(next_pos)) {
                 position = next_pos;
-                moved = true;
+                moved    = true;
             }
         }
 
@@ -44,23 +42,15 @@ public:
         return moved;
     }
 
-    int animFrame() const {
-        return anim_frame_;
-    }
+    int animFrame() const { return anim_frame_; }
 
-    void advanceAnim() {
-        anim_frame_ = (anim_frame_ + 1) % 4;
-    }
+    void advanceAnim() { anim_frame_ = (anim_frame_ + 1) % 4; }
 
-    bool isAlive() const {
-        return alive_;
-    }
+    bool isAlive() const { return alive_; }
 
-    void kill() {
-        alive_ = false;
-    }
+    void kill() { alive_ = false; }
 
 private:
-    bool alive_ = true;
+    bool alive_     = true;
     int anim_frame_ = 0;
 };

@@ -19,75 +19,138 @@ bool GameEngine::signal_term_restored_ = false;
 struct termios GameEngine::signal_original_termios_{};
 
 namespace {
-constexpr std::string_view kEnterAltScreen = "\033[?1049h\033[2J\033[H\033[?25l";
-constexpr std::string_view kEnterMouse     = "\033[?1000h\033[?1002h\033[?1003h\033[?1006h";
-constexpr std::string_view kLeaveAltScreen = "\033[?25h\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1049l";
+    constexpr std::string_view kEnterAltScreen = "\033[?1049h\033[2J\033[H\033[?25l";
+    constexpr std::string_view kEnterMouse     = "\033[?1000h\033[?1002h\033[?1003h\033[?1006h";
+    constexpr std::string_view kLeaveAltScreen = "\033[?25h\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1049l";
 
-constexpr std::array<const char*, 6> kGlitchWallGlyphs  = {"┼", "╣", "┬", "╪", "╬", "┚"};
-constexpr std::array<const char*, 4> kGlitchBlockGlyphs = {"█", "▓", "▞", "▦"};
-constexpr std::array<const char*, 4> kGlitchAsciiGlyphs = {"§", "¶", "Ø", "‡"};
-constexpr std::array<std::string_view, 10> kThemeNames = {"Classic", "Cyan", "Green", "Pink", "Red", "Violet", "Ice", "Amber", "Rainbow", "PacTerm+"};
+    constexpr std::array<const char*, 6> kGlitchWallGlyphs  = {"┼", "╣", "┬", "╪", "╬", "┚"};
+    constexpr std::array<const char*, 4> kGlitchBlockGlyphs = {"█", "▓", "▞", "▦"};
+    constexpr std::array<const char*, 4> kGlitchAsciiGlyphs = {"§", "¶", "Ø", "‡"};
+    constexpr std::array<std::string_view, 10> kThemeNames  = {"Classic", "Cyan", "Green", "Pink", "Red", "Violet", "Ice", "Amber", "Rainbow", "PacTerm+"};
 
-Color glitchRGB(uint64_t now) {
-    const uint8_t r = (now / 100 % 2 == 0) ? 255 : 50;
-    const uint8_t g = (now / 150 % 2 == 0) ? 50 : 0;
-    const uint8_t b = (now / 200 % 2 == 0) ? 255 : 0;
-    return {r, g, b};
-}
+    Color glitchRGB(uint64_t now) {
+        const uint8_t r = (now / 100 % 2 == 0) ? 255 : 50;
+        const uint8_t g = (now / 150 % 2 == 0) ? 50 : 0;
+        const uint8_t b = (now / 200 % 2 == 0) ? 255 : 0;
+        return {r, g, b};
+    }
 
-struct ThemePowerups {
-    LevelTheme theme;
-    std::array<Powerup, 2> powerups;
-};
+    struct ThemePowerups {
+        LevelTheme theme;
+        std::array<Powerup, 2> powerups;
+    };
 
-constexpr std::array<ThemePowerups, 8> THEME_POWERUPS = {{
-    {LevelTheme::Cyan, {{
-        {"Speed",       PowerupKind::PacSpeed,    },
-        {"Corrosion",   PowerupKind::PelletBonus, },
-    }}},
-    {LevelTheme::Green, {{
-        {"Warp Stun",   PowerupKind::WarpStun,    },
-        {"Harvest",     PowerupKind::DotBonus,    },
-    }}},
-    {LevelTheme::Pink, {{
-        {"Ember Shield", PowerupKind::LavaResist,  },
-        {"Magma Points", PowerupKind::PelletBonus, },
-    }}},
-    {LevelTheme::Red, {{
-        {"Dash Mastery", PowerupKind::DashRapid,   },
-        {"Fury Points",  PowerupKind::GhostBonus,  },
-    }}},
-    {LevelTheme::Glitch, {{
-        {"Chaos Luck", PowerupKind::GlitchLuck,   },
-        {"Corruption", PowerupKind::GlitchWarp,   },
-    }}},
-    {LevelTheme::Violet, {{
-        {"Blitz Bounty",   PowerupKind::BlitzBounty, },
-        {"Arcane Harvest", PowerupKind::DotBonus,     },
-    }}},
-    {LevelTheme::Ice, {{
-        {"Permafrost", PowerupKind::FreezeLinger, },
-        {"Frostbite",  PowerupKind::GhostSlow,    },
-    }}},
-    {LevelTheme::Amber, {{
-        {"Molten Shield", PowerupKind::LavaResist,  },
-        {"Golden Bounty", PowerupKind::GhostBonus,  },
-    }}},
-}};
-}
+    constexpr std::array<ThemePowerups, 8> THEME_POWERUPS = {{
+        {LevelTheme::Cyan,
+         {{
+             {
+                 "Speed",
+                 PowerupKind::PacSpeed,
+             },
+             {
+                 "Corrosion",
+                 PowerupKind::PelletBonus,
+             },
+         }}},
+        {LevelTheme::Green,
+         {{
+             {
+                 "Warp Stun",
+                 PowerupKind::WarpStun,
+             },
+             {
+                 "Harvest",
+                 PowerupKind::DotBonus,
+             },
+         }}},
+        {LevelTheme::Pink,
+         {{
+             {
+                 "Ember Shield",
+                 PowerupKind::LavaResist,
+             },
+             {
+                 "Magma Points",
+                 PowerupKind::PelletBonus,
+             },
+         }}},
+        {LevelTheme::Red,
+         {{
+             {
+                 "Dash Mastery",
+                 PowerupKind::DashRapid,
+             },
+             {
+                 "Fury Points",
+                 PowerupKind::GhostBonus,
+             },
+         }}},
+        {LevelTheme::Glitch,
+         {{
+             {
+                 "Chaos Luck",
+                 PowerupKind::GlitchLuck,
+             },
+             {
+                 "Corruption",
+                 PowerupKind::GlitchWarp,
+             },
+         }}},
+        {LevelTheme::Violet,
+         {{
+             {
+                 "Blitz Bounty",
+                 PowerupKind::BlitzBounty,
+             },
+             {
+                 "Arcane Harvest",
+                 PowerupKind::DotBonus,
+             },
+         }}},
+        {LevelTheme::Ice,
+         {{
+             {
+                 "Permafrost",
+                 PowerupKind::FreezeLinger,
+             },
+             {
+                 "Frostbite",
+                 PowerupKind::GhostSlow,
+             },
+         }}},
+        {LevelTheme::Amber,
+         {{
+             {
+                 "Molten Shield",
+                 PowerupKind::LavaResist,
+             },
+             {
+                 "Golden Bounty",
+                 PowerupKind::GhostBonus,
+             },
+         }}},
+    }};
+} // namespace
 
 static int clampKeyCode(int k) noexcept {
-    if (k >= ' ' && k <= '~') return k;
-    if (k == '\n' || k == '\r') return k;
-    if (k == 27 || k == 127) return k;
-    if (k >= 1000 && k <= 1005) return k;
+    if (k >= ' ' && k <= '~')
+        return k;
+    if (k == '\n' || k == '\r')
+        return k;
+    if (k == 27 || k == 127)
+        return k;
+    if (k >= 1000 && k <= 1005)
+        return k;
     return 0;
 }
 
 static size_t utf8SeqLength(unsigned char c) noexcept {
-    if (c >= 0xf0) return 4;
-    if (c >= 0xe0) return 3;
-    if (c >= 0xc0) return 2;
+    if (c >= 0xf0)
+        return 4;
+    if (c >= 0xe0)
+        return 3;
+    if (c >= 0xc0)
+        return 2;
     return 1;
 }
 
@@ -95,74 +158,39 @@ static size_t utf8SeqLength(unsigned char c) noexcept {
 static uint32_t decodeUTF8(const std::string& text, size_t i, size_t len) noexcept {
     const unsigned char* p = reinterpret_cast<const unsigned char*>(text.data()) + i;
     switch (len) {
-        case 1: return p[0];
-        case 2: return ((p[0] & 0x1Fu) << 6) | (p[1] & 0x3Fu);
-        case 3: return ((p[0] & 0x0Fu) << 12) | ((p[1] & 0x3Fu) << 6) | (p[2] & 0x3Fu);
-        case 4: return ((p[0] & 0x07u) << 18) | ((p[1] & 0x3Fu) << 12) | ((p[2] & 0x3Fu) << 6) | (p[3] & 0x3Fu);
+    case 1: return p[0];
+    case 2: return ((p[0] & 0x1Fu) << 6) | (p[1] & 0x3Fu);
+    case 3: return ((p[0] & 0x0Fu) << 12) | ((p[1] & 0x3Fu) << 6) | (p[2] & 0x3Fu);
+    case 4: return ((p[0] & 0x07u) << 18) | ((p[1] & 0x3Fu) << 12) | ((p[2] & 0x3Fu) << 6) | (p[3] & 0x3Fu);
     }
     return p[0];
 }
 
 // Terminal column width of a single decoded codepoint (0 == zero-width).
 static size_t codepointWidth(uint32_t cp) noexcept {
-    if (cp == 0x0483 ||
-        (cp >= 0x0300 && cp <= 0x036F) ||
-        (cp >= 0x1AB0 && cp <= 0x1AFF) ||
-        (cp >= 0x1DC0 && cp <= 0x1DFF) ||
-        (cp >= 0x20D0 && cp <= 0x20FF) ||
+    if (cp == 0x0483 || (cp >= 0x0300 && cp <= 0x036F) || (cp >= 0x1AB0 && cp <= 0x1AFF) || (cp >= 0x1DC0 && cp <= 0x1DFF) || (cp >= 0x20D0 && cp <= 0x20FF) ||
         (cp >= 0xFE00 && cp <= 0xFE0F))
         return 0;
 
     // Classic East Asian Wide/Fullwidth ranges.
-    if ((cp >= 0x1100 && cp <= 0x115F) ||
-        (cp >= 0x2329 && cp <= 0x232A) ||
-        (cp >= 0x2E80 && cp <= 0x303E) ||
-        (cp >= 0x3041 && cp <= 0x33FF) ||
-        (cp >= 0x3400 && cp <= 0x4DBF) ||
-        (cp >= 0x4E00 && cp <= 0x9FFF) ||
-        (cp >= 0xA000 && cp <= 0xA4CF) ||
-        (cp >= 0xA960 && cp <= 0xA97F) ||
-        (cp >= 0xAC00 && cp <= 0xD7A3) ||
-        (cp >= 0xF900 && cp <= 0xFAFF) ||
-        (cp >= 0xFE10 && cp <= 0xFE19) ||
-        (cp >= 0xFE30 && cp <= 0xFE6F) ||
-        (cp >= 0xFF00 && cp <= 0xFF60) ||
-        (cp >= 0xFFE0 && cp <= 0xFFE6) ||
-        (cp >= 0x20000 && cp <= 0x3FFFD))
+    if ((cp >= 0x1100 && cp <= 0x115F) || (cp >= 0x2329 && cp <= 0x232A) || (cp >= 0x2E80 && cp <= 0x303E) || (cp >= 0x3041 && cp <= 0x33FF) ||
+        (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0xA000 && cp <= 0xA4CF) || (cp >= 0xA960 && cp <= 0xA97F) ||
+        (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0xFE10 && cp <= 0xFE19) || (cp >= 0xFE30 && cp <= 0xFE6F) ||
+        (cp >= 0xFF00 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6) || (cp >= 0x20000 && cp <= 0x3FFFD))
         return 2;
 
     // Supplementary-plane emoji blocks render two columns wide.
-    if (cp >= 0x1F000 && cp <= 0x1FAFF) return 2;
+    if (cp >= 0x1F000 && cp <= 0x1FAFF)
+        return 2;
 
     // East Asian "Wide" symbols inside the else single-column Misc-Symbols and
     // Dingbats blocks (matches glibc wcwidth on a UTF-8 locale, e.g. ⚡).
-    if ((cp >= 0x231A && cp <= 0x231B) ||
-        (cp >= 0x23E9 && cp <= 0x23EC) ||
-        cp == 0x23F0 || cp == 0x23F3 ||
-        (cp >= 0x25FD && cp <= 0x25FE) ||
-        (cp >= 0x2614 && cp <= 0x2615) ||
-        (cp >= 0x2630 && cp <= 0x2637) ||
-        (cp >= 0x2648 && cp <= 0x2653) ||
-        cp == 0x267F ||
-        (cp >= 0x268A && cp <= 0x268F) ||
-        cp == 0x2693 ||
-        cp == 0x26A1 ||
-        (cp >= 0x26AA && cp <= 0x26AB) ||
-        (cp >= 0x26BD && cp <= 0x26BE) ||
-        (cp >= 0x26C4 && cp <= 0x26C5) ||
-        cp == 0x26CE || cp == 0x26D4 || cp == 0x26EA ||
-        (cp >= 0x26F2 && cp <= 0x26F3) ||
-        cp == 0x26F5 || cp == 0x26FA || cp == 0x26FD ||
-        cp == 0x2705 ||
-        (cp >= 0x270A && cp <= 0x270B) ||
-        cp == 0x2728 ||
-        cp == 0x274C || cp == 0x274E ||
-        (cp >= 0x2753 && cp <= 0x2755) ||
-        cp == 0x2757 ||
-        (cp >= 0x2795 && cp <= 0x2797) ||
-        cp == 0x27B0 || cp == 0x27BF ||
-        (cp >= 0x2B1B && cp <= 0x2B1C) ||
-        cp == 0x2B50 || cp == 0x2B55)
+    if ((cp >= 0x231A && cp <= 0x231B) || (cp >= 0x23E9 && cp <= 0x23EC) || cp == 0x23F0 || cp == 0x23F3 || (cp >= 0x25FD && cp <= 0x25FE) ||
+        (cp >= 0x2614 && cp <= 0x2615) || (cp >= 0x2630 && cp <= 0x2637) || (cp >= 0x2648 && cp <= 0x2653) || cp == 0x267F || (cp >= 0x268A && cp <= 0x268F) ||
+        cp == 0x2693 || cp == 0x26A1 || (cp >= 0x26AA && cp <= 0x26AB) || (cp >= 0x26BD && cp <= 0x26BE) || (cp >= 0x26C4 && cp <= 0x26C5) || cp == 0x26CE ||
+        cp == 0x26D4 || cp == 0x26EA || (cp >= 0x26F2 && cp <= 0x26F3) || cp == 0x26F5 || cp == 0x26FA || cp == 0x26FD || cp == 0x2705 ||
+        (cp >= 0x270A && cp <= 0x270B) || cp == 0x2728 || cp == 0x274C || cp == 0x274E || (cp >= 0x2753 && cp <= 0x2755) || cp == 0x2757 ||
+        (cp >= 0x2795 && cp <= 0x2797) || cp == 0x27B0 || cp == 0x27BF || (cp >= 0x2B1B && cp <= 0x2B1C) || cp == 0x2B50 || cp == 0x2B55)
         return 2;
 
     return 1;
@@ -174,13 +202,12 @@ static size_t codepointWidth(uint32_t cp) noexcept {
 // number of bytes the glyph unit occupies.
 static size_t seqWidth(const std::string& text, size_t i, size_t* consumed) noexcept {
     size_t len = utf8SeqLength(static_cast<unsigned char>(text[i]));
-    if (i + len > text.size()) len = text.size() - i;
+    if (i + len > text.size())
+        len = text.size() - i;
     *consumed = len;
 
-    const bool vs16 = i + len + 3 <= text.size() &&
-        static_cast<unsigned char>(text[i + len]) == 0xEF &&
-        static_cast<unsigned char>(text[i + len + 1]) == 0xB8 &&
-        static_cast<unsigned char>(text[i + len + 2]) == 0x8F;
+    const bool vs16 = i + len + 3 <= text.size() && static_cast<unsigned char>(text[i + len]) == 0xEF &&
+                      static_cast<unsigned char>(text[i + len + 1]) == 0xB8 && static_cast<unsigned char>(text[i + len + 2]) == 0x8F;
 
     if (vs16) {
         *consumed = len + 3;
@@ -190,7 +217,8 @@ static size_t seqWidth(const std::string& text, size_t i, size_t* consumed) noex
 }
 
 void GameEngine::restoreTerminalForSignal() {
-    if (signal_term_restored_) return;
+    if (signal_term_restored_)
+        return;
     signal_term_restored_ = true;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &signal_original_termios_);
     (void)::write(STDOUT_FILENO, kLeaveAltScreen.data(), kLeaveAltScreen.size());
@@ -217,7 +245,7 @@ void GameEngine::signalContHandler(int) {
         raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
         raw.c_oflag &= ~(OPOST);
         raw.c_cflag |= CS8;
-        raw.c_cc[VMIN] = 0;
+        raw.c_cc[VMIN]  = 0;
         raw.c_cc[VTIME] = 0;
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
     }
@@ -230,7 +258,7 @@ void GameEngine::signalContHandler(int) {
 void GameEngine::installSignals() {
     struct sigaction sa{};
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags   = SA_RESTART;
     sa.sa_handler = signalHandler;
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
@@ -243,13 +271,9 @@ void GameEngine::installSignals() {
     sigaction(SIGCONT, &sa, nullptr);
 }
 
-static Direction bfsNextDirection(
-    const Map& map,
-    Vec2 start,
-    Vec2 target,
-    Direction forbidden_direction
-) {
-    if (start == target) return Direction::None;
+static Direction bfsNextDirection(const Map& map, Vec2 start, Vec2 target, Direction forbidden_direction) {
+    if (start == target)
+        return Direction::None;
 
     struct QueueNode {
         Vec2 pos;
@@ -258,13 +282,8 @@ static Direction bfsNextDirection(
     std::array<QueueNode, Config::MAP_WIDTH * Config::MAP_HEIGHT> queue{};
     std::array<bool, Config::MAP_WIDTH * Config::MAP_HEIGHT> visited{};
 
-    auto inBounds = [](Vec2 pos) {
-        return pos.x >= 0 && pos.x < Config::MAP_WIDTH &&
-               pos.y >= 0 && pos.y < Config::MAP_HEIGHT;
-    };
-    auto getVisited = [&](Vec2 pos) -> bool {
-        return !inBounds(pos) || visited[pos.y * Config::MAP_WIDTH + pos.x];
-    };
+    auto inBounds   = [](Vec2 pos) { return pos.x >= 0 && pos.x < Config::MAP_WIDTH && pos.y >= 0 && pos.y < Config::MAP_HEIGHT; };
+    auto getVisited = [&](Vec2 pos) -> bool { return !inBounds(pos) || visited[pos.y * Config::MAP_WIDTH + pos.x]; };
     auto setVisited = [&](Vec2 pos) {
         if (inBounds(pos)) {
             visited[pos.y * Config::MAP_WIDTH + pos.x] = true;
@@ -283,11 +302,15 @@ static Direction bfsNextDirection(
     setVisited(start);
 
     for (Direction d : {Direction::Up, Direction::Right, Direction::Down, Direction::Left}) {
-        if (d == forbidden_direction) continue;
+        if (d == forbidden_direction)
+            continue;
         Vec2 next = map.wrapTunnel(start + directionToVec2(d));
-        if (getVisited(next)) continue;
-        if (!map.isWalkableByGhost(next)) continue;
-        if (next == target) return d;
+        if (getVisited(next))
+            continue;
+        if (!map.isWalkableByGhost(next))
+            continue;
+        if (next == target)
+            return d;
         setVisited(next);
         push(next, d);
     }
@@ -297,9 +320,12 @@ static Direction bfsNextDirection(
 
         for (Direction d : {Direction::Up, Direction::Right, Direction::Down, Direction::Left}) {
             Vec2 next = map.wrapTunnel(current.pos + directionToVec2(d));
-            if (getVisited(next)) continue;
-            if (!map.isWalkableByGhost(next)) continue;
-            if (next == target) return current.firstStep;
+            if (getVisited(next))
+                continue;
+            if (!map.isWalkableByGhost(next))
+                continue;
+            if (next == target)
+                return current.firstStep;
             setVisited(next);
             push(next, current.firstStep);
         }
@@ -313,32 +339,23 @@ struct ModeWave {
     int duration_ms;
 };
 
-static constexpr std::array<ModeWave, 8> MODE_WAVES = {{
-    {GhostMode::Scatter, 7000},
-    {GhostMode::Chase,   20000},
-    {GhostMode::Scatter, 7000},
-    {GhostMode::Chase,   20000},
-    {GhostMode::Scatter, 5000},
-    {GhostMode::Chase,   20000},
-    {GhostMode::Scatter, 5000},
-    {GhostMode::Chase,   -1}
-}};
+static constexpr std::array<ModeWave, 8> MODE_WAVES = {{{GhostMode::Scatter, 7000},
+                                                        {GhostMode::Chase, 20000},
+                                                        {GhostMode::Scatter, 7000},
+                                                        {GhostMode::Chase, 20000},
+                                                        {GhostMode::Scatter, 5000},
+                                                        {GhostMode::Chase, 20000},
+                                                        {GhostMode::Scatter, 5000},
+                                                        {GhostMode::Chase, -1}}};
 
 GameEngine::GameEngine()
-    : ghosts_{
-        Ghost{GhostPersonality::Blinky},
-        Ghost{GhostPersonality::Pinky},
-        Ghost{GhostPersonality::Inky},
-        Ghost{GhostPersonality::Clyde}
-      }
-{
+    : ghosts_{Ghost{GhostPersonality::Blinky}, Ghost{GhostPersonality::Pinky}, Ghost{GhostPersonality::Inky}, Ghost{GhostPersonality::Clyde}} {
     const char* env_nf = std::getenv("PACMAN_NERD_FONTS");
     if (env_nf && std::string(env_nf) == "0") {
         use_nerd_fonts_ = false;
     }
 
-    unsigned seed = static_cast<unsigned>(
-        std::chrono::steady_clock::now().time_since_epoch().count());
+    unsigned seed = static_cast<unsigned>(std::chrono::steady_clock::now().time_since_epoch().count());
     rng_.seed(seed);
 
     enableRawMode();
@@ -349,11 +366,11 @@ GameEngine::GameEngine()
     initRenderer();
     try {
         loadHighScore();
-    } catch (...) { }
+    } catch (...) {}
     rebuildKeybindings();
     try {
         generateSounds();
-    } catch (...) { }
+    } catch (...) {}
     startMainMenu();
     fade_animation_.fadeIn({255, 255, 255}, 400);
 }
@@ -367,9 +384,9 @@ GameEngine::~GameEngine() {
         Color c;
         if (selected_general_theme_ == 0) {
             double ratio = static_cast<double>(i) / (message.length() - 1);
-            c.r = static_cast<uint8_t>(255 - ratio * 255);
-            c.g = static_cast<uint8_t>(100 + ratio * 155);
-            c.b = 255;
+            c.r          = static_cast<uint8_t>(255 - ratio * 255);
+            c.g          = static_cast<uint8_t>(100 + ratio * 155);
+            c.b          = 255;
         } else if (selected_general_theme_ == 8) {
             c = getRainbowColor(static_cast<double>(i) * 0.15);
         } else {
@@ -382,14 +399,15 @@ GameEngine::~GameEngine() {
 }
 
 void GameEngine::enableRawMode() {
-    if (tcgetattr(STDIN_FILENO, &original_termios_) < 0) return;
+    if (tcgetattr(STDIN_FILENO, &original_termios_) < 0)
+        return;
     signal_original_termios_ = original_termios_;
-    struct termios raw = original_termios_;
+    struct termios raw       = original_termios_;
     raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
     raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
     raw.c_oflag &= ~(OPOST);
     raw.c_cflag |= CS8;
-    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VMIN]  = 0;
     raw.c_cc[VTIME] = 0;
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) >= 0) {
         raw_mode_enabled_ = true;
@@ -413,56 +431,66 @@ void GameEngine::queryTerminalSize() {
 }
 
 int GameEngine::readKey() {
-    char c = 0;
+    char c    = 0;
     ssize_t n = ::read(STDIN_FILENO, &c, 1);
-    if (n <= 0) return -1;
+    if (n <= 0)
+        return -1;
 
     if (c == 27) {
         auto read_char_timeout = [](char& out_c, int timeout_ms) -> bool {
-            struct pollfd pfd{ STDIN_FILENO, POLLIN, 0 };
+            struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
             int pr = ::poll(&pfd, 1, timeout_ms);
-            if (pr <= 0) return false;
+            if (pr <= 0)
+                return false;
             return ::read(STDIN_FILENO, &out_c, 1) > 0;
         };
 
         char seq[2];
-        if (!read_char_timeout(seq[0], 50)) return 27;
-        if (!read_char_timeout(seq[1], 50)) return 27;
+        if (!read_char_timeout(seq[0], 50))
+            return 27;
+        if (!read_char_timeout(seq[1], 50))
+            return 27;
 
         if (seq[0] == '[') {
             if (seq[1] == '<') {
                 std::string params;
                 params.reserve(32);
                 bool valid = false;
-                char term = 0;
+                char term  = 0;
                 while (params.size() < 32) {
                     char ch;
-                    if (!read_char_timeout(ch, 50)) break;
-                    if (ch == 'M' || ch == 'm') { term = ch; valid = true; break; }
+                    if (!read_char_timeout(ch, 50))
+                        break;
+                    if (ch == 'M' || ch == 'm') {
+                        term  = ch;
+                        valid = true;
+                        break;
+                    }
                     params += ch;
                 }
                 if (valid) {
                     int btn = 0, x = 0, y = 0;
                     if (std::sscanf(params.c_str(), "%d;%d;%d", &btn, &x, &y) >= 3) {
                         mouse_button_ = btn;
-                        mouse_x_ = x - 1;
-                        mouse_y_ = y - 1;
-                        mouse_press_ = (term == 'M');
+                        mouse_x_      = x - 1;
+                        mouse_y_      = y - 1;
+                        mouse_press_  = (term == 'M');
                         if (btn & 32) {
                             mouse_hover_active_ = true;
                             return 1005;
                         }
-                        if (mouse_press_) return 1004;
+                        if (mouse_press_)
+                            return 1004;
                         return -1;
                     }
                 }
                 return -1;
             }
             switch (seq[1]) {
-                case 'A': return 1000;
-                case 'B': return 1001;
-                case 'C': return 1002;
-                case 'D': return 1003;
+            case 'A': return 1000;
+            case 'B': return 1001;
+            case 'C': return 1002;
+            case 'D': return 1003;
             }
         }
         return 27;
@@ -473,7 +501,7 @@ int GameEngine::readKey() {
 void GameEngine::handleInput(int key) {
     afk_timer_ms_ = 0;
     if (phase_ == GamePhase::Screensaver) {
-        phase_ = GamePhase::Paused;
+        phase_                = GamePhase::Paused;
         pause_menu_selection_ = 0;
         return;
     }
@@ -486,10 +514,10 @@ void GameEngine::handleInput(int key) {
             dev_input_sequence_ = dev_input_sequence_.substr(dev_input_sequence_.length() - 3);
         }
         if (dev_input_sequence_ == "dev") {
-            pre_dev_phase_ = phase_;
-            phase_ = GamePhase::DevPasswordInput;
+            pre_dev_phase_       = phase_;
+            phase_               = GamePhase::DevPasswordInput;
             dev_password_buffer_ = "";
-            dev_input_sequence_ = "";
+            dev_input_sequence_  = "";
             return;
         }
     }
@@ -510,432 +538,438 @@ void GameEngine::handleInput(int key) {
     }
 
     GameAction action = GameAction::None;
-    auto it = key_to_action_.find(key);
+    auto it           = key_to_action_.find(key);
     if (it != key_to_action_.end()) {
         action = it->second;
     }
 
     Direction dir = Direction::None;
     switch (action) {
-        case GameAction::Up:    dir = Direction::Up; break;
-        case GameAction::Down:  dir = Direction::Down; break;
-        case GameAction::Left:  dir = Direction::Left; break;
-        case GameAction::Right: dir = Direction::Right; break;
-        default: break;
+    case GameAction::Up: dir = Direction::Up; break;
+    case GameAction::Down: dir = Direction::Down; break;
+    case GameAction::Left: dir = Direction::Left; break;
+    case GameAction::Right: dir = Direction::Right; break;
+    default: break;
     }
 
     switch (phase_) {
-        case GamePhase::MainMenu:
-            if (action == GameAction::Up) {
-                main_menu_selection_ = (main_menu_selection_ - 1 + 7) % 7;
-            } else if (action == GameAction::Down) {
-                main_menu_selection_ = (main_menu_selection_ + 1) % 7;
-            } else if (key == '\n' || key == '\r' || key == ' ') {
-                if (main_menu_selection_ == 0) {
-                    phase_ = GamePhase::LevelSelector;
-                    level_select_cursor_ = 0;
-                    fade_animation_.fadeIn({255, 255, 255}, 300);
-                } else if (main_menu_selection_ == 1) {
-                    phase_ = GamePhase::UsernameInput;
-                    input_username_ = username_;
-                } else if (main_menu_selection_ == 2) {
-                    phase_ = GamePhase::Stats;
-                    fade_animation_.fadeIn({255, 255, 255}, 300);
-                } else if (main_menu_selection_ == 3) {
-                    phase_ = GamePhase::RedeemInput;
-                    redeem_input_ = "";
-                    redeem_result_ = "";
-                } else if (main_menu_selection_ == 4) {
-                    if (isInstalledLocally()) {
-                        if (delete_bin()) {
-                            main_menu_message_ = "Removed successfully!";
-                        } else {
-                            main_menu_message_ = "Removal failed!";
-                        }
+    case GamePhase::MainMenu:
+        if (action == GameAction::Up) {
+            main_menu_selection_ = (main_menu_selection_ - 1 + 7) % 7;
+        } else if (action == GameAction::Down) {
+            main_menu_selection_ = (main_menu_selection_ + 1) % 7;
+        } else if (key == '\n' || key == '\r' || key == ' ') {
+            if (main_menu_selection_ == 0) {
+                phase_               = GamePhase::LevelSelector;
+                level_select_cursor_ = 0;
+                fade_animation_.fadeIn({255, 255, 255}, 300);
+            } else if (main_menu_selection_ == 1) {
+                phase_          = GamePhase::UsernameInput;
+                input_username_ = username_;
+            } else if (main_menu_selection_ == 2) {
+                phase_ = GamePhase::Stats;
+                fade_animation_.fadeIn({255, 255, 255}, 300);
+            } else if (main_menu_selection_ == 3) {
+                phase_         = GamePhase::RedeemInput;
+                redeem_input_  = "";
+                redeem_result_ = "";
+            } else if (main_menu_selection_ == 4) {
+                if (isInstalledLocally()) {
+                    if (delete_bin()) {
+                        main_menu_message_ = "Removed successfully!";
                     } else {
-                        if (install_bin()) {
-                            main_menu_message_ = "Installed successfully!";
-                        } else {
-                            main_menu_message_ = "Installation failed!";
-                        }
+                        main_menu_message_ = "Removal failed!";
                     }
-                    main_menu_msg_timer_ms_ = 3000;
-                } else if (main_menu_selection_ == 5) {
-                    phase_ = GamePhase::Settings;
-                    settings_selection_ = 0;
-                    main_menu_message_ = "";
-                    fade_animation_.fadeIn({255, 255, 255}, 300);
-                } else if (main_menu_selection_ == 6) {
-                    running_ = false;
+                } else {
+                    if (install_bin()) {
+                        main_menu_message_ = "Installed successfully!";
+                    } else {
+                        main_menu_message_ = "Installation failed!";
+                    }
+                }
+                main_menu_msg_timer_ms_ = 3000;
+            } else if (main_menu_selection_ == 5) {
+                phase_              = GamePhase::Settings;
+                settings_selection_ = 0;
+                main_menu_message_  = "";
+                fade_animation_.fadeIn({255, 255, 255}, 300);
+            } else if (main_menu_selection_ == 6) {
+                running_ = false;
+            }
+        }
+        break;
+
+    case GamePhase::Settings:
+        if (key == 27) {
+            phase_             = GamePhase::MainMenu;
+            main_menu_message_ = "";
+            fade_animation_.fadeIn({255, 255, 255}, 300);
+        } else if (action == GameAction::Up) {
+            settings_selection_ = (settings_selection_ - 1 + 7) % 7;
+        } else if (action == GameAction::Down) {
+            settings_selection_ = (settings_selection_ + 1) % 7;
+        } else if (action == GameAction::Left) {
+            if (settings_selection_ == 0) {
+                int temp = selected_general_theme_;
+                do {
+                    temp = (temp - 1 + Config::THEME_COUNT) % Config::THEME_COUNT;
+                } while (isColorLocked(temp));
+                selected_general_theme_ = temp;
+                saveHighScore();
+            } else if (settings_selection_ == 3) {
+                int temp = selected_pacman_color_;
+                do {
+                    temp = (temp - 1 + Config::THEME_COUNT) % Config::THEME_COUNT;
+                } while (isColorLocked(temp));
+                selected_pacman_color_ = temp;
+                saveHighScore();
+            }
+        } else if (action == GameAction::Right) {
+            if (settings_selection_ == 0) {
+                int temp = selected_general_theme_;
+                do {
+                    temp = (temp + 1) % Config::THEME_COUNT;
+                } while (isColorLocked(temp));
+                selected_general_theme_ = temp;
+                saveHighScore();
+            } else if (settings_selection_ == 3) {
+                int temp = selected_pacman_color_;
+                do {
+                    temp = (temp + 1) % Config::THEME_COUNT;
+                } while (isColorLocked(temp));
+                selected_pacman_color_ = temp;
+                saveHighScore();
+            }
+        } else if (key == '\n' || key == '\r' || key == ' ') {
+            activateSettingsSelection();
+        }
+        break;
+
+    case GamePhase::Stats:
+        if (key == 27 || key == '\n' || key == '\r' || key == ' ') {
+            phase_ = GamePhase::MainMenu;
+            fade_animation_.fadeIn({255, 255, 255}, 300);
+        }
+        break;
+
+    case GamePhase::LevelSelector:
+        if (action == GameAction::Up) {
+            if (level_select_cursor_ == 30) {
+                level_select_cursor_ = 27;
+            } else if (level_select_cursor_ >= 5) {
+                level_select_cursor_ -= 5;
+            } else {
+                level_select_cursor_ = 30;
+            }
+        } else if (action == GameAction::Down) {
+            if (level_select_cursor_ == 30) {
+                level_select_cursor_ = 2;
+            } else if (level_select_cursor_ + 5 < 30) {
+                level_select_cursor_ += 5;
+            } else {
+                level_select_cursor_ = 30;
+            }
+        } else if (action == GameAction::Left) {
+            if (level_select_cursor_ < 30) {
+                if (level_select_cursor_ % 5 > 0) {
+                    level_select_cursor_ -= 1;
                 }
             }
-            break;
+        } else if (action == GameAction::Right) {
+            if (level_select_cursor_ < 30) {
+                if (level_select_cursor_ % 5 < 4) {
+                    level_select_cursor_ += 1;
+                }
+            }
+        } else if (key == '\n' || key == '\r' || key == ' ') {
+            if (level_select_cursor_ < 30) {
+                int lvl = level_select_cursor_ + 1;
+                if (lvl <= max_unlocked_level_) {
+                    score_ = 0;
+                    lives_ = Config::INITIAL_LIVES;
+                    level_ = lvl;
+                    games_played_++;
+                    saveHighScore();
 
-        case GamePhase::Settings:
+                    acid_trails_.clear();
+                    lava_tiles_.clear();
+
+                    startLevel(level_);
+                    fade_animation_.fadeIn({255, 255, 255}, 300);
+                    startGetReady();
+                }
+            } else if (level_select_cursor_ == 30) {
+                phase_ = GamePhase::MainMenu;
+                fade_animation_.fadeIn({255, 255, 255}, 300);
+            }
+        } else if (key == 27) {
+            phase_ = GamePhase::MainMenu;
+            fade_animation_.fadeIn({255, 255, 255}, 300);
+        }
+        break;
+
+    case GamePhase::UsernameInput:
+        if (key == 27) {
+            phase_ = GamePhase::MainMenu;
+        } else if (key == '\n' || key == '\r') {
+            if (!input_username_.empty()) {
+                username_ = input_username_;
+                saveHighScore();
+            }
+            phase_ = GamePhase::MainMenu;
+        } else if (key == 127 || key == 8) {
+            if (!input_username_.empty()) {
+                input_username_.pop_back();
+            }
+        } else if (key >= 32 && key <= 126) {
+            if (input_username_.length() < 15) {
+                input_username_ += static_cast<char>(key);
+            }
+        }
+        break;
+
+    case GamePhase::RedeemInput:
+        if (key == 27) {
+            phase_ = GamePhase::MainMenu;
+        } else if (key == '\n' || key == '\r') {
+            std::string code;
+            for (char c : redeem_input_) {
+                code += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            }
+            if (code == "RAINBOW") {
+                unlocked_rainbow_ = true;
+                saveHighScore();
+                redeem_result_       = "CODE REDEEMED";
+                redeem_result_valid_ = true;
+            } else if (code == "WAEL") {
+                max_unlocked_level_      = 30;
+                unlocked_rainbow_        = true;
+                letter_hunt_.letter_mask = LetterHuntState::FULL_MASK;
+                pacterm_plus_unlocked_   = true;
+                saveHighScore();
+                redeem_result_       = "ALL LEVELS & THEMES UNLOCKED!";
+                redeem_result_valid_ = true;
+            } else {
+                redeem_result_       = "INVALID CODE";
+                redeem_result_valid_ = false;
+            }
+        } else if (key == 127 || key == 8) {
+            if (!redeem_input_.empty()) {
+                redeem_input_.pop_back();
+            }
+        } else if (key >= 32 && key <= 126) {
+            if (redeem_input_.length() < 20) {
+                redeem_input_ += static_cast<char>(key);
+            }
+        }
+        break;
+
+    case GamePhase::KeyConfig:
+        if (is_binding_) {
             if (key == 27) {
-                phase_ = GamePhase::MainMenu;
-                main_menu_message_ = "";
-                fade_animation_.fadeIn({255, 255, 255}, 300);
-            } else if (action == GameAction::Up) {
-                settings_selection_ = (settings_selection_ - 1 + 7) % 7;
-            } else if (action == GameAction::Down) {
-                settings_selection_ = (settings_selection_ + 1) % 7;
-            } else if (action == GameAction::Left) {
-                if (settings_selection_ == 0) {
-                    int temp = selected_general_theme_;
-                    do {
-                        temp = (temp - 1 + Config::THEME_COUNT) % Config::THEME_COUNT;
-                    } while (isColorLocked(temp));
-                    selected_general_theme_ = temp;
-                    saveHighScore();
-                } else if (settings_selection_ == 3) {
-                    int temp = selected_pacman_color_;
-                    do {
-                        temp = (temp - 1 + Config::THEME_COUNT) % Config::THEME_COUNT;
-                    } while (isColorLocked(temp));
-                    selected_pacman_color_ = temp;
-                    saveHighScore();
-                }
-            } else if (action == GameAction::Right) {
-                if (settings_selection_ == 0) {
-                    int temp = selected_general_theme_;
-                    do {
-                        temp = (temp + 1) % Config::THEME_COUNT;
-                    } while (isColorLocked(temp));
-                    selected_general_theme_ = temp;
-                    saveHighScore();
-                } else if (settings_selection_ == 3) {
-                    int temp = selected_pacman_color_;
-                    do {
-                        temp = (temp + 1) % Config::THEME_COUNT;
-                    } while (isColorLocked(temp));
-                    selected_pacman_color_ = temp;
-                    saveHighScore();
-                }
-            } else if (key == '\n' || key == '\r' || key == ' ') {
-                activateSettingsSelection();
-            }
-            break;
+                is_binding_ = false;
+            } else {
+                if (binding_action_ == GameAction::Up)
+                    custom_key_up_ = key;
+                else if (binding_action_ == GameAction::Down)
+                    custom_key_down_ = key;
+                else if (binding_action_ == GameAction::Left)
+                    custom_key_left_ = key;
+                else if (binding_action_ == GameAction::Right)
+                    custom_key_right_ = key;
+                else if (binding_action_ == GameAction::Pause)
+                    custom_key_pause_ = key;
 
-        case GamePhase::Stats:
-            if (key == 27 || key == '\n' || key == '\r' || key == ' ') {
-                phase_ = GamePhase::MainMenu;
-                fade_animation_.fadeIn({255, 255, 255}, 300);
+                is_binding_ = false;
+                saveHighScore();
+                rebuildKeybindings();
             }
-            break;
-
-        case GamePhase::LevelSelector:
+        } else {
             if (action == GameAction::Up) {
-                if (level_select_cursor_ == 30) {
-                    level_select_cursor_ = 27;
-                } else if (level_select_cursor_ >= 5) {
-                    level_select_cursor_ -= 5;
-                } else {
-                    level_select_cursor_ = 30;
-                }
+                key_config_selection_ = (key_config_selection_ - 1 + 6) % 6;
             } else if (action == GameAction::Down) {
-                if (level_select_cursor_ == 30) {
-                    level_select_cursor_ = 2;
-                } else if (level_select_cursor_ + 5 < 30) {
-                    level_select_cursor_ += 5;
-                } else {
-                    level_select_cursor_ = 30;
-                }
-            } else if (action == GameAction::Left) {
-                if (level_select_cursor_ < 30) {
-                    if (level_select_cursor_ % 5 > 0) {
-                        level_select_cursor_ -= 1;
-                    }
-                }
-            } else if (action == GameAction::Right) {
-                if (level_select_cursor_ < 30) {
-                    if (level_select_cursor_ % 5 < 4) {
-                        level_select_cursor_ += 1;
-                    }
-                }
+                key_config_selection_ = (key_config_selection_ + 1) % 6;
             } else if (key == '\n' || key == '\r' || key == ' ') {
-                if (level_select_cursor_ < 30) {
-                    int lvl = level_select_cursor_ + 1;
-                    if (lvl <= max_unlocked_level_) {
-                        score_ = 0;
-                        lives_ = Config::INITIAL_LIVES;
-                        level_ = lvl;
-                        games_played_++;
-                        saveHighScore();
-
-                        acid_trails_.clear();
-                        lava_tiles_.clear();
-
-                        startLevel(level_);
-                        fade_animation_.fadeIn({255, 255, 255}, 300);
-                        startGetReady();
-                    }
-                } else if (level_select_cursor_ == 30) {
-                    phase_ = GamePhase::MainMenu;
-                    fade_animation_.fadeIn({255, 255, 255}, 300);
+                if (key_config_selection_ == 5) {
+                    phase_ = GamePhase::Settings;
+                } else {
+                    is_binding_ = true;
+                    if (key_config_selection_ == 0)
+                        binding_action_ = GameAction::Up;
+                    else if (key_config_selection_ == 1)
+                        binding_action_ = GameAction::Down;
+                    else if (key_config_selection_ == 2)
+                        binding_action_ = GameAction::Left;
+                    else if (key_config_selection_ == 3)
+                        binding_action_ = GameAction::Right;
+                    else if (key_config_selection_ == 4)
+                        binding_action_ = GameAction::Pause;
                 }
             } else if (key == 27) {
-                phase_ = GamePhase::MainMenu;
-                fade_animation_.fadeIn({255, 255, 255}, 300);
+                phase_ = GamePhase::Settings;
             }
-            break;
+        }
+        break;
 
-        case GamePhase::UsernameInput:
-            if (key == 27) {
-                phase_ = GamePhase::MainMenu;
-            } else if (key == '\n' || key == '\r') {
-                if (!input_username_.empty()) {
-                    username_ = input_username_;
-                    saveHighScore();
-                }
-                phase_ = GamePhase::MainMenu;
-            } else if (key == 127 || key == 8) {
-                if (!input_username_.empty()) {
-                    input_username_.pop_back();
-                }
-            } else if (key >= 32 && key <= 126) {
-                if (input_username_.length() < 15) {
-                    input_username_ += static_cast<char>(key);
-                }
-            }
-            break;
+    case GamePhase::Playing:
+        if (dir != Direction::None) {
+            pacman_.requestedDirection = dir;
+        }
+        if (action == GameAction::Pause || key == 27) {
+            phase_                = GamePhase::Paused;
+            pause_menu_selection_ = 0;
+        }
 
-        case GamePhase::RedeemInput:
-            if (key == 27) {
-                phase_ = GamePhase::MainMenu;
-            } else if (key == '\n' || key == '\r') {
-                std::string code;
-                for (char c : redeem_input_) {
-                    code += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-                }
-                if (code == "RAINBOW") {
-                    unlocked_rainbow_ = true;
-                    saveHighScore();
-                    redeem_result_ = "CODE REDEEMED";
-                    redeem_result_valid_ = true;
-                } else if (code == "WAEL") {
-                    max_unlocked_level_ = 30;
-                    unlocked_rainbow_ = true;
-                    letter_hunt_.letter_mask = LetterHuntState::FULL_MASK;
-                    pacterm_plus_unlocked_ = true;
-                    saveHighScore();
-                    redeem_result_ = "ALL LEVELS & THEMES UNLOCKED!";
-                    redeem_result_valid_ = true;
-                } else {
-                    redeem_result_ = "INVALID CODE";
-                    redeem_result_valid_ = false;
-                }
-            } else if (key == 127 || key == 8) {
-                if (!redeem_input_.empty()) {
-                    redeem_input_.pop_back();
-                }
-            } else if (key >= 32 && key <= 126) {
-                if (redeem_input_.length() < 20) {
-                    redeem_input_ += static_cast<char>(key);
-                }
-            }
-            break;
+        if (key == ' ' && level_ >= 17 && level_ <= 19 && dash_cooldown_ <= 0) {
+            dash_cooldown_ = hasPowerup(PowerupKind::DashRapid) ? 1800 : 3000;
+            playSound("sounds/eat_ghost.wav");
+            Vec2 dir_vec = {0, 0};
+            if (pacman_.currentDirection == Direction::Up)
+                dir_vec = {0, -1};
+            else if (pacman_.currentDirection == Direction::Down)
+                dir_vec = {0, 1};
+            else if (pacman_.currentDirection == Direction::Left)
+                dir_vec = {-1, 0};
+            else if (pacman_.currentDirection == Direction::Right)
+                dir_vec = {1, 0};
 
-        case GamePhase::KeyConfig:
-            if (is_binding_) {
-                if (key == 27) {
-                    is_binding_ = false;
-                } else {
-                    if (binding_action_ == GameAction::Up) custom_key_up_ = key;
-                    else if (binding_action_ == GameAction::Down) custom_key_down_ = key;
-                    else if (binding_action_ == GameAction::Left) custom_key_left_ = key;
-                    else if (binding_action_ == GameAction::Right) custom_key_right_ = key;
-                    else if (binding_action_ == GameAction::Pause) custom_key_pause_ = key;
-
-                    is_binding_ = false;
-                    saveHighScore();
-                    rebuildKeybindings();
-                }
-            } else {
-                if (action == GameAction::Up) {
-                    key_config_selection_ = (key_config_selection_ - 1 + 6) % 6;
-                } else if (action == GameAction::Down) {
-                    key_config_selection_ = (key_config_selection_ + 1) % 6;
-                } else if (key == '\n' || key == '\r' || key == ' ') {
-                    if (key_config_selection_ == 5) {
-                        phase_ = GamePhase::Settings;
-                    } else {
-                        is_binding_ = true;
-                        if (key_config_selection_ == 0) binding_action_ = GameAction::Up;
-                        else if (key_config_selection_ == 1) binding_action_ = GameAction::Down;
-                        else if (key_config_selection_ == 2) binding_action_ = GameAction::Left;
-                        else if (key_config_selection_ == 3) binding_action_ = GameAction::Right;
-                        else if (key_config_selection_ == 4) binding_action_ = GameAction::Pause;
-                    }
-                } else if (key == 27) {
-                    phase_ = GamePhase::Settings;
-                }
-            }
-            break;
-
-        case GamePhase::Playing:
-            if (dir != Direction::None) {
-                pacman_.requestedDirection = dir;
-            }
-            if (action == GameAction::Pause || key == 27) {
-                phase_ = GamePhase::Paused;
-                pause_menu_selection_ = 0;
-            }
-
-            if (key == ' ' && level_ >= 17 && level_ <= 19 && dash_cooldown_ <= 0) {
-                dash_cooldown_ = hasPowerup(PowerupKind::DashRapid) ? 1800 : 3000;
-                playSound("sounds/eat_ghost.wav");
-                Vec2 dir_vec = {0, 0};
-                if (pacman_.currentDirection == Direction::Up) dir_vec = {0, -1};
-                else if (pacman_.currentDirection == Direction::Down) dir_vec = {0, 1};
-                else if (pacman_.currentDirection == Direction::Left) dir_vec = {-1, 0};
-                else if (pacman_.currentDirection == Direction::Right) dir_vec = {1, 0};
-
-                for (int i = 0; i < 3; ++i) {
-                    Vec2 next_pos = { pacman_.position.x + dir_vec.x, pacman_.position.y + dir_vec.y };
-                    TileType next_tile = map_.getTile(next_pos);
-                    if (next_tile != TileType::Wall && next_tile != TileType::GhostDoor) {
-                        pacman_.position = next_pos;
-                        spawnParticleBurst(pacman_.position, {255, 215, 0});
-                        checkCollisions();
-                        if (phase_ != GamePhase::Playing) break;
-                    } else {
+            for (int i = 0; i < 3; ++i) {
+                Vec2 next_pos      = {pacman_.position.x + dir_vec.x, pacman_.position.y + dir_vec.y};
+                TileType next_tile = map_.getTile(next_pos);
+                if (next_tile != TileType::Wall && next_tile != TileType::GhostDoor) {
+                    pacman_.position = next_pos;
+                    spawnParticleBurst(pacman_.position, {255, 215, 0});
+                    checkCollisions();
+                    if (phase_ != GamePhase::Playing)
                         break;
-                    }
+                } else {
+                    break;
                 }
             }
-            break;
+        }
+        break;
 
-        case GamePhase::Paused:
-            if (action == GameAction::Pause || key == 27) {
+    case GamePhase::Paused:
+        if (action == GameAction::Pause || key == 27) {
+            phase_ = GamePhase::Playing;
+        } else if (action == GameAction::Up) {
+            pause_menu_selection_ = (pause_menu_selection_ - 1 + 4) % 4;
+        } else if (action == GameAction::Down) {
+            pause_menu_selection_ = (pause_menu_selection_ + 1) % 4;
+        } else if (key == '\n' || key == '\r' || key == ' ') {
+            if (pause_menu_selection_ == 0) {
                 phase_ = GamePhase::Playing;
-            } else if (action == GameAction::Up) {
-                pause_menu_selection_ = (pause_menu_selection_ - 1 + 4) % 4;
-            } else if (action == GameAction::Down) {
-                pause_menu_selection_ = (pause_menu_selection_ + 1) % 4;
-            } else if (key == '\n' || key == '\r' || key == ' ') {
-                if (pause_menu_selection_ == 0) {
-                    phase_ = GamePhase::Playing;
-                } else if (pause_menu_selection_ == 1) {
+            } else if (pause_menu_selection_ == 1) {
+                startLevel(level_);
+                startGetReady();
+            } else if (pause_menu_selection_ == 2) {
+                phase_ = GamePhase::MainMenu;
+            } else if (pause_menu_selection_ == 3) {
+                running_ = false;
+            }
+        }
+        break;
+
+    case GamePhase::DevPasswordInput:
+        if (key == 27) {
+            phase_ = pre_dev_phase_;
+        } else if (key == '\n' || key == '\r') {
+            std::string upper_pw = dev_password_buffer_;
+            for (auto& ch : upper_pw)
+                ch = std::toupper(ch);
+
+            if (upper_pw == "WARCH") {
+                phase_              = GamePhase::DevMenu;
+                dev_menu_selection_ = 0;
+            } else {
+                phase_ = pre_dev_phase_;
+            }
+            dev_password_buffer_ = "";
+        } else if (key == 127 || key == 8) {
+            if (!dev_password_buffer_.empty()) {
+                dev_password_buffer_.pop_back();
+            }
+        } else if (key >= 32 && key <= 126) {
+            if (dev_password_buffer_.length() < 20) {
+                dev_password_buffer_ += static_cast<char>(key);
+            }
+        }
+        break;
+
+    case GamePhase::DevMenu:
+        if (key == 27) {
+            phase_ = pre_dev_phase_;
+        } else if (action == GameAction::Up) {
+            dev_menu_selection_ = (dev_menu_selection_ - 1 + 9) % 9;
+        } else if (action == GameAction::Down) {
+            dev_menu_selection_ = (dev_menu_selection_ + 1) % 9;
+        } else if (action == GameAction::Left || action == GameAction::Right) {
+            int dir = (action == GameAction::Right) ? 1 : -1;
+            switch (dev_menu_selection_) {
+            case 0:
+                level_ = std::clamp(level_ + dir, 1, 30);
+                if (pre_dev_phase_ == GamePhase::Playing || pre_dev_phase_ == GamePhase::Paused) {
                     startLevel(level_);
-                    startGetReady();
-                } else if (pause_menu_selection_ == 2) {
-                    phase_ = GamePhase::MainMenu;
-                } else if (pause_menu_selection_ == 3) {
-                    running_ = false;
                 }
+                break;
+            case 1:
+                selected_pacman_color_ = (selected_pacman_color_ + dir + Config::THEME_COUNT) % Config::THEME_COUNT;
+                if (isColorLocked(selected_pacman_color_))
+                    selected_pacman_color_ = 0;
+                saveHighScore();
+                break;
+            case 2: lives_ = std::clamp(lives_ + dir, 1, 66); break;
+            case 3: score_ = std::max(0, score_ + dir * 1000); break;
+            case 4: immortal_ = !immortal_; break;
+            case 5: cheat_freeze_ghosts_ = !cheat_freeze_ghosts_; break;
+            case 6: cheat_super_speed_ = !cheat_super_speed_; break;
+            case 7:
+            case 8: break;
+            default: break;
             }
-            break;
-
-        case GamePhase::DevPasswordInput:
-            if (key == 27) {
-                phase_ = pre_dev_phase_;
-            } else if (key == '\n' || key == '\r') {
-                std::string upper_pw = dev_password_buffer_;
-                for (auto& ch : upper_pw) ch = std::toupper(ch);
-
-                if (upper_pw == "WARCH") {
-                    phase_ = GamePhase::DevMenu;
-                    dev_menu_selection_ = 0;
-                } else {
-                    phase_ = pre_dev_phase_;
-                }
-                dev_password_buffer_ = "";
-            } else if (key == 127 || key == 8) {
-                if (!dev_password_buffer_.empty()) {
-                    dev_password_buffer_.pop_back();
-                }
-            } else if (key >= 32 && key <= 126) {
-                if (dev_password_buffer_.length() < 20) {
-                    dev_password_buffer_ += static_cast<char>(key);
-                }
-            }
-            break;
-
-        case GamePhase::DevMenu:
-            if (key == 27) {
-                phase_ = pre_dev_phase_;
-            } else if (action == GameAction::Up) {
-                dev_menu_selection_ = (dev_menu_selection_ - 1 + 9) % 9;
-            } else if (action == GameAction::Down) {
-                dev_menu_selection_ = (dev_menu_selection_ + 1) % 9;
-            } else if (action == GameAction::Left || action == GameAction::Right) {
-                int dir = (action == GameAction::Right) ? 1 : -1;
-                switch (dev_menu_selection_) {
-                    case 0:
-                        level_ = std::clamp(level_ + dir, 1, 30);
-                        if (pre_dev_phase_ == GamePhase::Playing || pre_dev_phase_ == GamePhase::Paused) {
-                            startLevel(level_);
-                        }
-                        break;
-                    case 1:
-                        selected_pacman_color_ = (selected_pacman_color_ + dir + Config::THEME_COUNT) % Config::THEME_COUNT;
-                        if (isColorLocked(selected_pacman_color_)) selected_pacman_color_ = 0;
-                        saveHighScore();
-                        break;
-                    case 2:
-                        lives_ = std::clamp(lives_ + dir, 1, 66);
-                        break;
-                    case 3:
-                        score_ = std::max(0, score_ + dir * 1000);
-                        break;
-                    case 4:
-                        immortal_ = !immortal_;
-                        break;
-                    case 5:
-                        cheat_freeze_ghosts_ = !cheat_freeze_ghosts_;
-                        break;
-                    case 6:
-                        cheat_super_speed_ = !cheat_super_speed_;
-                        break;
-                    case 7:
-                    case 8:
-                        break;
-                    default:
-                        break;
-                }
-            } else if (key == '\n' || key == '\r' || key == ' ') {
-                if (dev_menu_selection_ == 4) {
-                    immortal_ = !immortal_;
-                } else if (dev_menu_selection_ == 5) {
-                    cheat_freeze_ghosts_ = !cheat_freeze_ghosts_;
-                } else if (dev_menu_selection_ == 6) {
-                    cheat_super_speed_ = !cheat_super_speed_;
-                } else if (dev_menu_selection_ == 7) {
-                    if (pre_dev_phase_ == GamePhase::Playing || pre_dev_phase_ == GamePhase::Paused) {
-                        int points = 0;
-                        for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
-                            for (int x = 0; x < Config::MAP_WIDTH; ++x) {
-                                TileType t = map_.getTile(x, y);
-                                if (t == TileType::Dot) points += Config::SCORE_DOT;
-                                else if (t == TileType::PowerPellet) points += Config::SCORE_POWER_PELLET;
-                                if (t == TileType::Dot || t == TileType::PowerPellet) {
-                                    map_.setTile({x, y}, TileType::Empty);
-                                }
+        } else if (key == '\n' || key == '\r' || key == ' ') {
+            if (dev_menu_selection_ == 4) {
+                immortal_ = !immortal_;
+            } else if (dev_menu_selection_ == 5) {
+                cheat_freeze_ghosts_ = !cheat_freeze_ghosts_;
+            } else if (dev_menu_selection_ == 6) {
+                cheat_super_speed_ = !cheat_super_speed_;
+            } else if (dev_menu_selection_ == 7) {
+                if (pre_dev_phase_ == GamePhase::Playing || pre_dev_phase_ == GamePhase::Paused) {
+                    int points = 0;
+                    for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
+                        for (int x = 0; x < Config::MAP_WIDTH; ++x) {
+                            TileType t = map_.getTile(x, y);
+                            if (t == TileType::Dot)
+                                points += Config::SCORE_DOT;
+                            else if (t == TileType::PowerPellet)
+                                points += Config::SCORE_POWER_PELLET;
+                            if (t == TileType::Dot || t == TileType::PowerPellet) {
+                                map_.setTile({x, y}, TileType::Empty);
                             }
                         }
-                        addScore(points);
-                        startLevelClear();
                     }
-                } else if (dev_menu_selection_ == 8) {
-                    phase_ = pre_dev_phase_;
+                    addScore(points);
+                    startLevelClear();
                 }
+            } else if (dev_menu_selection_ == 8) {
+                phase_ = pre_dev_phase_;
             }
-            break;
+        }
+        break;
 
-        case GamePhase::GameOver:
-            if (key == '\n' || key == '\r' || key == ' ') {
-                score_ = 0;
-                lives_ = Config::INITIAL_LIVES;
-                level_ = 1;
-                immortal_ = false;
-                map_.reset();
-                startMainMenu();
-            }
-            break;
+    case GamePhase::GameOver:
+        if (key == '\n' || key == '\r' || key == ' ') {
+            score_    = 0;
+            lives_    = Config::INITIAL_LIVES;
+            level_    = 1;
+            immortal_ = false;
+            map_.reset();
+            startMainMenu();
+        }
+        break;
 
-        default:
-            break;
+    default: break;
     }
 }
 
@@ -945,200 +979,219 @@ void GameEngine::handleMouseClick() {
 
     int center_row = render_height_ / 2;
     int center_col = render_width_ / 2;
-    int mx = mouse_x_;
-    int my = mouse_y_;
+    int mx         = mouse_x_;
+    int my         = mouse_y_;
 
-    auto hitText = [](int row, int col, const std::string& text, int my, int mx) -> bool {
-        return my == row && mx >= col && mx < col + (int)text.size();
-    };
+    auto hitText = [](int row, int col, const std::string& text, int my, int mx) -> bool { return my == row && mx >= col && mx < col + (int)text.size(); };
 
     switch (phase_) {
-        case GamePhase::MainMenu: {
-            bool big = render_width_ >= 66 && render_height_ >= 22;
+    case GamePhase::MainMenu: {
+        bool big = render_width_ >= 66 && render_height_ >= 22;
 
-            std::string install_text = isInstalledLocally() ? "Uninstall pacterm" : "Install pacterm";
-            std::string user_text = big ? ("Username:       " + username_) : ("User: " + username_);
+        std::string install_text = isInstalledLocally() ? "Uninstall pacterm" : "Install pacterm";
+        std::string user_text    = big ? ("Username:       " + username_) : ("User: " + username_);
 
-            std::array<std::string, 7> opts = {
-                "  Start Game",
-                "  " + user_text,
-                "  Stats",
-                "  Redeem Code",
-                "  " + install_text,
-                "  Settings",
-                "  Quit"
-            };
+        std::array<std::string, 7> opts = {"  Start Game", "  " + user_text, "  Stats", "  Redeem Code", "  " + install_text, "  Settings", "  Quit"};
 
-            size_t max_w = 0;
-            for (const auto& o : opts) {
-                max_w = std::max(max_w, glyphCount(o));
-            }
-            int col_start = center_col - static_cast<int>(max_w / 2);
-
-            for (int i = 0; i < 7; ++i) {
-                int row = center_row - 2 + i;
-                if (hitText(row, col_start, opts[i], my, mx)) {
-                    main_menu_selection_ = i;
-                    switch (i) {
-                        case 0: phase_ = GamePhase::LevelSelector; level_select_cursor_ = 0; break;
-                        case 1: phase_ = GamePhase::UsernameInput; input_username_ = username_; break;
-                        case 2: phase_ = GamePhase::Stats; break;
-                        case 3: phase_ = GamePhase::RedeemInput; redeem_input_ = ""; redeem_result_ = ""; break;
-                        case 4:
-                            if (isInstalledLocally()) {
-                                if (delete_bin()) main_menu_message_ = "Removed successfully!";
-                                else main_menu_message_ = "Removal failed!";
-                            } else {
-                                if (install_bin()) main_menu_message_ = "Installed successfully!";
-                                else main_menu_message_ = "Installation failed!";
-                            }
-                            main_menu_msg_timer_ms_ = 3000;
-                            break;
-                        case 5: phase_ = GamePhase::Settings; settings_selection_ = 0; main_menu_message_ = ""; break;
-                        case 6: running_ = false; break;
-                    }
-                    return;
-                }
-            }
-            break;
+        size_t max_w = 0;
+        for (const auto& o : opts) {
+            max_w = std::max(max_w, glyphCount(o));
         }
-        case GamePhase::Settings: {
-            bool big = render_width_ >= 66 && render_height_ >= 26;
+        int col_start = center_col - static_cast<int>(max_w / 2);
 
-            std::string nf_text = "Nerd Fonts:     " + std::string(use_nerd_fonts_ ? "ON" : "OFF");
-            std::string sound_text = "Sound:          " + std::string(muted_ ? "OFF" : "ON");
-            const std::array<std::string_view, Config::THEME_COUNT>& theme_names = kThemeNames;
-            std::string theme_text = big ? std::string("General Theme:  ") + std::string(theme_names[selected_general_theme_])
-                                         : std::string("Theme: ") + std::string(theme_names[selected_general_theme_]);
-            std::string pm_text = std::string("Pac-Man Theme:  ") + std::string(theme_names[selected_pacman_color_]);
-
-            std::array<std::string, 7> opts = {
-                "  " + theme_text,
-                "  " + nf_text,
-                "  " + sound_text,
-                "  " + pm_text,
-                "  Configure Keys",
-                "  Reset",
-                "  Back to Menu"
-            };
-
-            size_t max_w = 0;
-            for (const auto& o : opts) {
-                max_w = std::max(max_w, glyphCount(o));
-            }
-            int col_start = center_col - static_cast<int>(max_w / 2);
-            int row_base = big ? (center_row - 3) : (center_row - 4);
-
-            for (int i = 0; i < 7; ++i) {
-                int row = row_base + i;
-                if (hitText(row, col_start, opts[i], my, mx)) {
-                    settings_selection_ = i;
-                    activateSettingsSelection();
-                    return;
-                }
-            }
-            break;
-        }
-        case GamePhase::LevelSelector: {
-            for (int r = 0; r < 6; ++r) {
-                for (int c = 0; c < 5; ++c) {
-                    int lvl = r * 5 + c + 1;
-                    int row = center_row - 8 + r * 2;
-                    int col = center_col - 22 + c * 11;
-                    if (my == row && mx >= col - 4 && mx < col + 4) {
-                        if (lvl <= max_unlocked_level_) {
-                            score_ = 0; lives_ = Config::INITIAL_LIVES; level_ = lvl;
-                            games_played_++; saveHighScore();
-                            acid_trails_.clear(); lava_tiles_.clear();
-                            startLevel(level_); startGetReady();
-                        }
-                        return;
+        for (int i = 0; i < 7; ++i) {
+            int row = center_row - 2 + i;
+            if (hitText(row, col_start, opts[i], my, mx)) {
+                main_menu_selection_ = i;
+                switch (i) {
+                case 0:
+                    phase_               = GamePhase::LevelSelector;
+                    level_select_cursor_ = 0;
+                    break;
+                case 1:
+                    phase_          = GamePhase::UsernameInput;
+                    input_username_ = username_;
+                    break;
+                case 2: phase_ = GamePhase::Stats; break;
+                case 3:
+                    phase_         = GamePhase::RedeemInput;
+                    redeem_input_  = "";
+                    redeem_result_ = "";
+                    break;
+                case 4:
+                    if (isInstalledLocally()) {
+                        if (delete_bin())
+                            main_menu_message_ = "Removed successfully!";
+                        else
+                            main_menu_message_ = "Removal failed!";
+                    } else {
+                        if (install_bin())
+                            main_menu_message_ = "Installed successfully!";
+                        else
+                            main_menu_message_ = "Installation failed!";
                     }
+                    main_menu_msg_timer_ms_ = 3000;
+                    break;
+                case 5:
+                    phase_              = GamePhase::Settings;
+                    settings_selection_ = 0;
+                    main_menu_message_  = "";
+                    break;
+                case 6: running_ = false; break;
                 }
-            }
-            int row_back = center_row + 4;
-            std::string back_text = "  [ BACK TO MENU ]  ";
-            int back_col_start = center_col - (int)back_text.length() / 2;
-            if (hitText(row_back, back_col_start, back_text, my, mx)) {
-                phase_ = GamePhase::MainMenu;
                 return;
             }
-            break;
         }
-        case GamePhase::Paused: {
-            std::array<std::string, 4> opts = {"  Resume Game", "  Restart Level", "  Return to Menu", "  Quit Game"};
-            size_t max_w = 0;
-            for (const auto& o : opts) {
-                max_w = std::max(max_w, glyphCount(o));
+        break;
+    }
+    case GamePhase::Settings: {
+        bool big = render_width_ >= 66 && render_height_ >= 26;
+
+        std::string nf_text                                                  = "Nerd Fonts:     " + std::string(use_nerd_fonts_ ? "ON" : "OFF");
+        std::string sound_text                                               = "Sound:          " + std::string(muted_ ? "OFF" : "ON");
+        const std::array<std::string_view, Config::THEME_COUNT>& theme_names = kThemeNames;
+        std::string theme_text = big ? std::string("General Theme:  ") + std::string(theme_names[selected_general_theme_])
+                                     : std::string("Theme: ") + std::string(theme_names[selected_general_theme_]);
+        std::string pm_text    = std::string("Pac-Man Theme:  ") + std::string(theme_names[selected_pacman_color_]);
+
+        std::array<std::string, 7> opts = {"  " + theme_text,  "  " + nf_text, "  " + sound_text, "  " + pm_text,
+                                           "  Configure Keys", "  Reset",      "  Back to Menu"};
+
+        size_t max_w = 0;
+        for (const auto& o : opts) {
+            max_w = std::max(max_w, glyphCount(o));
+        }
+        int col_start = center_col - static_cast<int>(max_w / 2);
+        int row_base  = big ? (center_row - 3) : (center_row - 4);
+
+        for (int i = 0; i < 7; ++i) {
+            int row = row_base + i;
+            if (hitText(row, col_start, opts[i], my, mx)) {
+                settings_selection_ = i;
+                activateSettingsSelection();
+                return;
             }
-            int col_start = center_col - static_cast<int>(max_w / 2);
-            for (int i = 0; i < 4; ++i) {
-                int row = center_row - 1 + i;
-                if (hitText(row, col_start, opts[i], my, mx)) {
-                    if (i == 0) { phase_ = GamePhase::Playing; }
-                    else if (i == 1) {
-                        map_.reset(); score_ = 0; lives_ = Config::INITIAL_LIVES;
-                        acid_trails_.clear(); lava_tiles_.clear(); popups_.clear(); particles_.clear();
-                        startLevel(level_); startGetReady();
-                    } else if (i == 2) {
-                        startMainMenu();
-                    } else {
-                        running_ = false;
+        }
+        break;
+    }
+    case GamePhase::LevelSelector: {
+        for (int r = 0; r < 6; ++r) {
+            for (int c = 0; c < 5; ++c) {
+                int lvl = r * 5 + c + 1;
+                int row = center_row - 8 + r * 2;
+                int col = center_col - 22 + c * 11;
+                if (my == row && mx >= col - 4 && mx < col + 4) {
+                    if (lvl <= max_unlocked_level_) {
+                        score_ = 0;
+                        lives_ = Config::INITIAL_LIVES;
+                        level_ = lvl;
+                        games_played_++;
+                        saveHighScore();
+                        acid_trails_.clear();
+                        lava_tiles_.clear();
+                        startLevel(level_);
+                        startGetReady();
                     }
                     return;
                 }
             }
-            break;
         }
-        case GamePhase::KeyConfig: {
-            if (is_binding_) break;
-            std::array<std::string, 6> opts = {
-                "  UP:    [ " + getKeyName(custom_key_up_) + " ]",
-                "  DOWN:  [ " + getKeyName(custom_key_down_) + " ]",
-                "  LEFT:  [ " + getKeyName(custom_key_left_) + " ]",
-                "  RIGHT: [ " + getKeyName(custom_key_right_) + " ]",
-                "  PAUSE: [ " + getKeyName(custom_key_pause_) + " ]",
-                "  Save & Back"
-            };
-            size_t max_w = 0;
-            for (const auto& o : opts) {
-                max_w = std::max(max_w, glyphCount(o));
-            }
-            int col_start = center_col - static_cast<int>(max_w / 2);
-            for (int i = 0; i < 6; ++i) {
-                int row = center_row - 4 + i;
-                if (hitText(row, col_start, opts[i], my, mx)) {
-                    if (i < 5) {
-                        key_config_selection_ = i; is_binding_ = true;
-                        if (i == 0) binding_action_ = GameAction::Up;
-                        else if (i == 1) binding_action_ = GameAction::Down;
-                        else if (i == 2) binding_action_ = GameAction::Left;
-                        else if (i == 3) binding_action_ = GameAction::Right;
-                        else if (i == 4) binding_action_ = GameAction::Pause;
-                    } else {
-                        phase_ = GamePhase::Settings;
-                    }
-                    return;
+        int row_back          = center_row + 4;
+        std::string back_text = "  [ BACK TO MENU ]  ";
+        int back_col_start    = center_col - (int)back_text.length() / 2;
+        if (hitText(row_back, back_col_start, back_text, my, mx)) {
+            phase_ = GamePhase::MainMenu;
+            return;
+        }
+        break;
+    }
+    case GamePhase::Paused: {
+        std::array<std::string, 4> opts = {"  Resume Game", "  Restart Level", "  Return to Menu", "  Quit Game"};
+        size_t max_w                    = 0;
+        for (const auto& o : opts) {
+            max_w = std::max(max_w, glyphCount(o));
+        }
+        int col_start = center_col - static_cast<int>(max_w / 2);
+        for (int i = 0; i < 4; ++i) {
+            int row = center_row - 1 + i;
+            if (hitText(row, col_start, opts[i], my, mx)) {
+                if (i == 0) {
+                    phase_ = GamePhase::Playing;
+                } else if (i == 1) {
+                    map_.reset();
+                    score_ = 0;
+                    lives_ = Config::INITIAL_LIVES;
+                    acid_trails_.clear();
+                    lava_tiles_.clear();
+                    popups_.clear();
+                    particles_.clear();
+                    startLevel(level_);
+                    startGetReady();
+                } else if (i == 2) {
+                    startMainMenu();
+                } else {
+                    running_ = false;
                 }
+                return;
             }
-            break;
         }
-        case GamePhase::GameOver: {
-            std::string text = "Press ENTER to return to Menu";
-            int col = center_col - 14;
-            if (hitText(center_row + 1, col, text, my, mx)) {
-                score_ = 0; lives_ = Config::INITIAL_LIVES; level_ = 1; immortal_ = false;
-                map_.reset(); startMainMenu();
+        break;
+    }
+    case GamePhase::KeyConfig: {
+        if (is_binding_)
+            break;
+        std::array<std::string, 6> opts = {"  UP:    [ " + getKeyName(custom_key_up_) + " ]",    "  DOWN:  [ " + getKeyName(custom_key_down_) + " ]",
+                                           "  LEFT:  [ " + getKeyName(custom_key_left_) + " ]",  "  RIGHT: [ " + getKeyName(custom_key_right_) + " ]",
+                                           "  PAUSE: [ " + getKeyName(custom_key_pause_) + " ]", "  Save & Back"};
+        size_t max_w                    = 0;
+        for (const auto& o : opts) {
+            max_w = std::max(max_w, glyphCount(o));
+        }
+        int col_start = center_col - static_cast<int>(max_w / 2);
+        for (int i = 0; i < 6; ++i) {
+            int row = center_row - 4 + i;
+            if (hitText(row, col_start, opts[i], my, mx)) {
+                if (i < 5) {
+                    key_config_selection_ = i;
+                    is_binding_           = true;
+                    if (i == 0)
+                        binding_action_ = GameAction::Up;
+                    else if (i == 1)
+                        binding_action_ = GameAction::Down;
+                    else if (i == 2)
+                        binding_action_ = GameAction::Left;
+                    else if (i == 3)
+                        binding_action_ = GameAction::Right;
+                    else if (i == 4)
+                        binding_action_ = GameAction::Pause;
+                } else {
+                    phase_ = GamePhase::Settings;
+                }
+                return;
             }
-            break;
         }
-        default:
-            break;
+        break;
+    }
+    case GamePhase::GameOver: {
+        std::string text = "Press ENTER to return to Menu";
+        int col          = center_col - 14;
+        if (hitText(center_row + 1, col, text, my, mx)) {
+            score_    = 0;
+            lives_    = Config::INITIAL_LIVES;
+            level_    = 1;
+            immortal_ = false;
+            map_.reset();
+            startMainMenu();
+        }
+        break;
+    }
+    default: break;
     }
 }
 
 bool GameEngine::isMouseHovering(int row, int col, const std::string& text) const {
-    if (!mouse_hover_active_) return false;
+    if (!mouse_hover_active_)
+        return false;
     return mouse_y_ == row && mouse_x_ >= col && mouse_x_ < col + static_cast<int>(text.size());
 }
 
@@ -1146,10 +1199,11 @@ void GameEngine::run() {
     auto last_time = std::chrono::steady_clock::now();
 
     while (running_) {
-        auto now = std::chrono::steady_clock::now();
+        auto now     = std::chrono::steady_clock::now();
         int delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
-        last_time = now;
-        if (delta_ms > 50) delta_ms = 50;
+        last_time    = now;
+        if (delta_ms > 50)
+            delta_ms = 50;
 
         struct winsize ws;
         if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) >= 0) {
@@ -1166,11 +1220,13 @@ void GameEngine::run() {
         int key = readKey();
         while (key != -1) {
             handleInput(key);
-            if (!running_) break;
+            if (!running_)
+                break;
             key = readKey();
         }
 
-        if (!running_) break;
+        if (!running_)
+            break;
 
         update(delta_ms);
         render();
@@ -1187,446 +1243,445 @@ void GameEngine::update(int delta_ms) {
     fade_animation_.update(delta_ms);
 
     switch (phase_) {
-        case GamePhase::MainMenu:
-        case GamePhase::LevelSelector:
-        case GamePhase::Settings:
-        case GamePhase::RedeemInput:
-        case GamePhase::Stats:
-        case GamePhase::UsernameInput:
-            if (main_menu_msg_timer_ms_ > 0) {
-                main_menu_msg_timer_ms_ -= delta_ms;
-                if (main_menu_msg_timer_ms_ <= 0) {
-                    main_menu_message_ = "";
-                }
+    case GamePhase::MainMenu:
+    case GamePhase::LevelSelector:
+    case GamePhase::Settings:
+    case GamePhase::RedeemInput:
+    case GamePhase::Stats:
+    case GamePhase::UsernameInput:
+        if (main_menu_msg_timer_ms_ > 0) {
+            main_menu_msg_timer_ms_ -= delta_ms;
+            if (main_menu_msg_timer_ms_ <= 0) {
+                main_menu_message_ = "";
             }
-            break;
+        }
+        break;
 
-        case GamePhase::Screensaver:
-            if (screensaver_dir_ == 1) {
-                screensaver_x_ += delta_ms * 0.012;
-                if (screensaver_x_ > render_width_ + 25) {
-                    screensaver_dir_ = -1;
-                    screensaver_x_ = render_width_ + 10;
+    case GamePhase::Screensaver:
+        if (screensaver_dir_ == 1) {
+            screensaver_x_ += delta_ms * 0.012;
+            if (screensaver_x_ > render_width_ + 25) {
+                screensaver_dir_ = -1;
+                screensaver_x_   = render_width_ + 10;
+            }
+        } else {
+            screensaver_x_ -= delta_ms * 0.012;
+            if (screensaver_x_ < -25) {
+                screensaver_dir_ = 1;
+                screensaver_x_   = -10;
+            }
+        }
+        break;
+
+    case GamePhase::GetReady:
+        phase_timer_ms_ -= delta_ms;
+        if (phase_timer_ms_ <= 0) {
+            startPlaying();
+        }
+        break;
+
+    case GamePhase::Playing: {
+        time_played_ms_ += delta_ms;
+        level_start_time_ms_ += delta_ms;
+
+        if (fever_timer_ms_ > 0) {
+            fever_timer_ms_ -= delta_ms;
+            if (fever_timer_ms_ <= 0) {
+                fever_timer_ms_ = 0;
+                fever_active_   = false;
+            }
+        }
+
+        if (ghost_freeze_timer_ms_ > 0) {
+            ghost_freeze_timer_ms_ -= delta_ms;
+            if (ghost_freeze_timer_ms_ < 0)
+                ghost_freeze_timer_ms_ = 0;
+        }
+        if (pac_speed_timer_ms_ > 0) {
+            pac_speed_timer_ms_ -= delta_ms;
+            if (pac_speed_timer_ms_ < 0)
+                pac_speed_timer_ms_ = 0;
+        }
+        if (letter_score_mult_timer_ms_ > 0) {
+            letter_score_mult_timer_ms_ -= delta_ms;
+            if (letter_score_mult_timer_ms_ < 0)
+                letter_score_mult_timer_ms_ = 0;
+        }
+
+        if (letter_hunt_.active) {
+            letter_hunt_.timer_ms -= delta_ms;
+            if (letter_hunt_.timer_ms <= 0) {
+                if (map_.getTile(letter_hunt_.pos) == letter_hunt_.type) {
+                    map_.setTile(letter_hunt_.pos, TileType::Empty);
                 }
+                letter_hunt_.active = false;
+            }
+        }
+
+        if (special_item_active_) {
+            special_item_timer_ms_ -= delta_ms;
+            if (special_item_timer_ms_ <= 0) {
+                if (map_.getTile(special_item_pos_) == special_item_type_) {
+                    map_.setTile(special_item_pos_, TileType::Empty);
+                }
+                special_item_active_ = false;
+            }
+        } else {
+            cherry_spawn_timer_ms_ -= delta_ms;
+            if (cherry_spawn_timer_ms_ <= 0) {
+                cherry_spawn_timer_ms_ = 25000 + rng_() % 25000;
+                spawnSpecialItem(TileType::Cherry);
+            }
+
+            apple_spawn_timer_ms_ -= delta_ms;
+            if (apple_spawn_timer_ms_ <= 0) {
+                apple_spawn_timer_ms_ = 45000 + rng_() % 45000;
+                spawnSpecialItem(TileType::GoldenApple);
+            }
+
+            heart_spawn_timer_ms_ -= delta_ms;
+            if (heart_spawn_timer_ms_ <= 0) {
+                heart_spawn_timer_ms_ = 50000 + rng_() % 50000;
+                spawnSpecialItem(TileType::Heart);
+            }
+        }
+
+        updateGlobalModeTimer(delta_ms);
+
+        if (speed_boost_timer_ms_ > 0) {
+            speed_boost_timer_ms_ -= delta_ms;
+            if (speed_boost_timer_ms_ < 0)
+                speed_boost_timer_ms_ = 0;
+        }
+        if (ice_freeze_timer_ms_ > 0) {
+            ice_freeze_timer_ms_ -= delta_ms;
+            if (ice_freeze_timer_ms_ < 0)
+                ice_freeze_timer_ms_ = 0;
+        }
+        if (dash_cooldown_ > 0) {
+            dash_cooldown_ -= delta_ms;
+        }
+
+        if (hasPowerup(PowerupKind::LavaResist)) {
+            if (lava_resist_active_) {
+                lava_resist_window_ms_ -= delta_ms;
+                if (lava_resist_window_ms_ <= 0) {
+                    lava_resist_active_      = false;
+                    lava_resist_cooldown_ms_ = 9000;
+                }
+            } else if (lava_resist_cooldown_ms_ > 0) {
+                lava_resist_cooldown_ms_ -= delta_ms;
+                if (lava_resist_cooldown_ms_ < 0)
+                    lava_resist_cooldown_ms_ = 0;
             } else {
-                screensaver_x_ -= delta_ms * 0.012;
-                if (screensaver_x_ < -25) {
-                    screensaver_dir_ = 1;
-                    screensaver_x_ = -10;
-                }
+                lava_resist_active_    = true;
+                lava_resist_window_ms_ = 3500;
+                spawnParticleBurst(pacman_.position, levelThemeColor(level_));
             }
-            break;
+        }
+        if (warp_stun_timer_ms_ > 0) {
+            warp_stun_timer_ms_ -= delta_ms;
+            if (warp_stun_timer_ms_ < 0)
+                warp_stun_timer_ms_ = 0;
+        }
 
-        case GamePhase::GetReady:
-            phase_timer_ms_ -= delta_ms;
-            if (phase_timer_ms_ <= 0) {
-                startPlaying();
-            }
-            break;
-
-        case GamePhase::Playing:
-        {
-            time_played_ms_ += delta_ms;
-            level_start_time_ms_ += delta_ms;
-
-            if (fever_timer_ms_ > 0) {
-                fever_timer_ms_ -= delta_ms;
-                if (fever_timer_ms_ <= 0) {
-                    fever_timer_ms_ = 0;
-                    fever_active_ = false;
-                }
-            }
-
-            if (ghost_freeze_timer_ms_ > 0) {
-                ghost_freeze_timer_ms_ -= delta_ms;
-                if (ghost_freeze_timer_ms_ < 0) ghost_freeze_timer_ms_ = 0;
-            }
-            if (pac_speed_timer_ms_ > 0) {
-                pac_speed_timer_ms_ -= delta_ms;
-                if (pac_speed_timer_ms_ < 0) pac_speed_timer_ms_ = 0;
-            }
-            if (letter_score_mult_timer_ms_ > 0) {
-                letter_score_mult_timer_ms_ -= delta_ms;
-                if (letter_score_mult_timer_ms_ < 0) letter_score_mult_timer_ms_ = 0;
-            }
-
-            if (letter_hunt_.active) {
-                letter_hunt_.timer_ms -= delta_ms;
-                if (letter_hunt_.timer_ms <= 0) {
-                    if (map_.getTile(letter_hunt_.pos) == letter_hunt_.type) {
-                        map_.setTile(letter_hunt_.pos, TileType::Empty);
+        if (hasPowerup(PowerupKind::GlitchWarp)) {
+            glitch_warp_timer_ms_ -= delta_ms;
+            if (glitch_warp_timer_ms_ <= 0) {
+                glitch_warp_timer_ms_   = 7000 + static_cast<int>(rng_() % 5000);
+                std::vector<Vec2> tiles = reachableTiles();
+                if (!tiles.empty()) {
+                    Vec2 target = tiles[rng_() % tiles.size()];
+                    if (target != pacman_.position) {
+                        spawnParticleBurst(pacman_.position, levelThemeColor(level_));
+                        pacman_.position = target;
+                        pac_just_warped_ = true;
+                        spawnParticleBurst(target, levelThemeColor(level_));
                     }
-                    letter_hunt_.active = false;
                 }
             }
+        }
 
-            if (special_item_active_) {
-                special_item_timer_ms_ -= delta_ms;
-                if (special_item_timer_ms_ <= 0) {
-                    if (map_.getTile(special_item_pos_) == special_item_type_) {
-                        map_.setTile(special_item_pos_, TileType::Empty);
-                    }
-                    special_item_active_ = false;
-                }
+        if (ghost_blitz_timer_ms_ > 0) {
+            ghost_blitz_timer_ms_ -= delta_ms;
+        }
+        if (level_ >= 21 && level_ <= 23) {
+            ghost_blitz_cooldown_ -= delta_ms;
+            if (ghost_blitz_cooldown_ <= 0) {
+                ghost_blitz_cooldown_ = 4000 + rng_() % 3000;
+                ghost_blitz_timer_ms_ = 1500;
+            }
+        }
+
+        if (level_ >= 24 && level_ <= 26) {
+            ice_freeze_cooldown_ -= delta_ms;
+            if (ice_freeze_cooldown_ <= 0) {
+                ice_freeze_cooldown_ = 7000 + rng_() % 3000;
+                ice_freeze_timer_ms_ = hasPowerup(PowerupKind::FreezeLinger) ? 2000 : 1200;
+                spawnParticleBurst(pacman_.position, {140, 230, 255});
+            }
+        }
+
+        for (auto it = popups_.begin(); it != popups_.end();) {
+            it->lifetime_ms -= delta_ms;
+            if (it->lifetime_ms <= 0) {
+                it = popups_.erase(it);
             } else {
-                cherry_spawn_timer_ms_ -= delta_ms;
-                if (cherry_spawn_timer_ms_ <= 0) {
-                    cherry_spawn_timer_ms_ = 25000 + rng_() % 25000;
-                    spawnSpecialItem(TileType::Cherry);
-                }
-
-                apple_spawn_timer_ms_ -= delta_ms;
-                if (apple_spawn_timer_ms_ <= 0) {
-                    apple_spawn_timer_ms_ = 45000 + rng_() % 45000;
-                    spawnSpecialItem(TileType::GoldenApple);
-                }
-
-                heart_spawn_timer_ms_ -= delta_ms;
-                if (heart_spawn_timer_ms_ <= 0) {
-                    heart_spawn_timer_ms_ = 50000 + rng_() % 50000;
-                    spawnSpecialItem(TileType::Heart);
-                }
-
+                ++it;
             }
+        }
 
-            updateGlobalModeTimer(delta_ms);
+        double dt_sec = delta_ms / 1000.0;
+        for (auto it = particles_.begin(); it != particles_.end();) {
+            it->lifetime_ms -= delta_ms;
+            if (it->lifetime_ms <= 0) {
+                it = particles_.erase(it);
+            } else {
+                it->x += it->vx * dt_sec;
+                it->y += it->vy * dt_sec;
+                ++it;
+            }
+        }
 
-            if (speed_boost_timer_ms_ > 0) {
-                speed_boost_timer_ms_ -= delta_ms;
-                if (speed_boost_timer_ms_ < 0) speed_boost_timer_ms_ = 0;
+        for (auto it = acid_trails_.begin(); it != acid_trails_.end();) {
+            it->lifetime_ms -= delta_ms;
+            if (it->lifetime_ms <= 0) {
+                it = acid_trails_.erase(it);
+            } else {
+                ++it;
             }
-            if (ice_freeze_timer_ms_ > 0) {
-                ice_freeze_timer_ms_ -= delta_ms;
-                if (ice_freeze_timer_ms_ < 0) ice_freeze_timer_ms_ = 0;
-            }
-            if (dash_cooldown_ > 0) {
-                dash_cooldown_ -= delta_ms;
-            }
-
-            if (hasPowerup(PowerupKind::LavaResist)) {
-                if (lava_resist_active_) {
-                    lava_resist_window_ms_ -= delta_ms;
-                    if (lava_resist_window_ms_ <= 0) {
-                        lava_resist_active_ = false;
-                        lava_resist_cooldown_ms_ = 9000;
-                    }
-                } else if (lava_resist_cooldown_ms_ > 0) {
-                    lava_resist_cooldown_ms_ -= delta_ms;
-                    if (lava_resist_cooldown_ms_ < 0) lava_resist_cooldown_ms_ = 0;
-                } else {
-                    lava_resist_active_ = true;
-                    lava_resist_window_ms_ = 3500;
-                    spawnParticleBurst(pacman_.position, levelThemeColor(level_));
+        }
+        if (level_ >= 5 && level_ <= 8) {
+            bool already_exists = false;
+            for (const auto& trail : acid_trails_) {
+                if (trail.pos == pacman_.position) {
+                    already_exists = true;
+                    break;
                 }
             }
-            if (warp_stun_timer_ms_ > 0) {
-                warp_stun_timer_ms_ -= delta_ms;
-                if (warp_stun_timer_ms_ < 0) warp_stun_timer_ms_ = 0;
+            if (!already_exists) {
+                acid_trails_.push_back(AcidTrail{.pos = pacman_.position, .lifetime_ms = 3000});
             }
+        }
 
-            if (hasPowerup(PowerupKind::GlitchWarp)) {
-                glitch_warp_timer_ms_ -= delta_ms;
-                if (glitch_warp_timer_ms_ <= 0) {
-                    glitch_warp_timer_ms_ = 7000 + static_cast<int>(rng_() % 5000);
-                    std::vector<Vec2> tiles = reachableTiles();
-                    if (!tiles.empty()) {
-                        Vec2 target = tiles[rng_() % tiles.size()];
-                        if (target != pacman_.position) {
-                            spawnParticleBurst(pacman_.position, levelThemeColor(level_));
-                            pacman_.position = target;
-                            pac_just_warped_ = true;
-                            spawnParticleBurst(target, levelThemeColor(level_));
+        for (auto it = lava_tiles_.begin(); it != lava_tiles_.end();) {
+            if (it->warning_ms > 0) {
+                it->warning_ms -= delta_ms;
+                ++it;
+            } else if (it->active_ms > 0) {
+                it->active_ms -= delta_ms;
+                if (pacman_.position == it->pos && !immortal_ && !(hasPowerup(PowerupKind::LavaResist) && lava_resist_active_)) {
+                    pacmanCaught();
+                }
+                ++it;
+            } else {
+                it = lava_tiles_.erase(it);
+            }
+        }
+        if ((level_ >= 13 && level_ <= 16) || (level_ >= 27 && level_ <= 29)) {
+            lava_spawn_timer_ms_ -= delta_ms;
+            if (lava_spawn_timer_ms_ <= 0) {
+                lava_spawn_timer_ms_ = 3000 + rng_() % 3000;
+                std::vector<Vec2> empty_cells;
+                for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
+                    for (int x = 0; x < Config::MAP_WIDTH; ++x) {
+                        if (map_.getTile(x, y) == TileType::Empty && !(y >= 12 && y <= 16 && x >= 10 && x <= 17)) {
+                            empty_cells.push_back({x, y});
                         }
                     }
                 }
-            }
-
-            if (ghost_blitz_timer_ms_ > 0) {
-                ghost_blitz_timer_ms_ -= delta_ms;
-            }
-            if (level_ >= 21 && level_ <= 23) {
-                ghost_blitz_cooldown_ -= delta_ms;
-                if (ghost_blitz_cooldown_ <= 0) {
-                    ghost_blitz_cooldown_ = 4000 + rng_() % 3000;
-                    ghost_blitz_timer_ms_ = 1500;
+                if (!empty_cells.empty()) {
+                    Vec2 pos = empty_cells[rng_() % empty_cells.size()];
+                    lava_tiles_.push_back(LavaTile{.pos = pos, .warning_ms = 1500, .active_ms = 1500});
                 }
             }
+        }
 
-            if (level_ >= 24 && level_ <= 26) {
-                ice_freeze_cooldown_ -= delta_ms;
-                if (ice_freeze_cooldown_ <= 0) {
-                    ice_freeze_cooldown_ = 7000 + rng_() % 3000;
-                    ice_freeze_timer_ms_ = hasPowerup(PowerupKind::FreezeLinger) ? 2000 : 1200;
-                    spawnParticleBurst(pacman_.position, {140, 230, 255});
-                }
+        if (level_ >= 9 && level_ <= 12) {
+            Vec2 pos    = pacman_.position;
+            bool warped = false;
+            if (pos == portal_A1_ && !pac_just_warped_) {
+                pacman_.position = portal_A2_;
+                pac_just_warped_ = true;
+                warped           = true;
+            } else if (pos == portal_A2_ && !pac_just_warped_) {
+                pacman_.position = portal_A1_;
+                pac_just_warped_ = true;
+                warped           = true;
+            } else if (pos == portal_B1_ && !pac_just_warped_) {
+                pacman_.position = portal_B2_;
+                pac_just_warped_ = true;
+                warped           = true;
+            } else if (pos == portal_B2_ && !pac_just_warped_) {
+                pacman_.position = portal_B1_;
+                pac_just_warped_ = true;
+                warped           = true;
+            } else if (pos != portal_A1_ && pos != portal_A2_ && pos != portal_B1_ && pos != portal_B2_) {
+                pac_just_warped_ = false;
+            }
+            if (warped && hasPowerup(PowerupKind::WarpStun)) {
+                warp_stun_timer_ms_ = 700;
+                spawnParticleBurst(pacman_.position, levelThemeColor(level_));
+            }
+        }
+
+        for (size_t i = 0; i < ghosts_.size(); ++i) {
+            updateGhostAI(ghosts_[i], delta_ms);
+        }
+
+        int pac_interval = Config::PAC_MOVE_INTERVAL;
+        if (cheat_super_speed_) {
+            pac_interval = Config::PAC_MOVE_INTERVAL * 4 / 10;
+        } else if (speed_boost_timer_ms_ > 0 || pac_speed_timer_ms_ > 0) {
+            pac_interval = static_cast<int>(Config::PAC_MOVE_INTERVAL * Config::PAC_SPEED_BOOST_FACTOR);
+        } else if (fever_active_ && fever_timer_ms_ > 0) {
+            pac_interval = static_cast<int>(Config::PAC_MOVE_INTERVAL * Config::FEVER_SPEED_FACTOR);
+        } else if (hasPowerup(PowerupKind::PacSpeed)) {
+            pac_interval = static_cast<int>(Config::PAC_MOVE_INTERVAL * 85 / 100);
+        }
+        pac_move_accumulator_ += delta_ms;
+        while (pac_move_accumulator_ >= pac_interval) {
+            pac_move_accumulator_ -= pac_interval;
+            pacman_.tryMove(map_);
+            pacman_.advanceAnim();
+            checkCollisions();
+        }
+
+        for (size_t i = 0; i < ghosts_.size(); ++i) {
+            auto& g = ghosts_[i];
+            if ((ice_freeze_timer_ms_ > 0 || ghost_freeze_timer_ms_ > 0 || cheat_freeze_ghosts_ || warp_stun_timer_ms_ > 0) && g.mode != GhostMode::Eaten) {
+                continue;
             }
 
-            for (auto it = popups_.begin(); it != popups_.end(); ) {
-                it->lifetime_ms -= delta_ms;
-                if (it->lifetime_ms <= 0) {
-                    it = popups_.erase(it);
-                } else {
-                    ++it;
-                }
+            int interval = Config::GHOST_MOVE_INTERVAL;
+            if (g.mode == GhostMode::Frightened) {
+                interval = Config::GHOST_MOVE_INTERVAL * 2;
+            } else if (g.mode == GhostMode::Eaten) {
+                interval = Config::GHOST_MOVE_INTERVAL / 2;
             }
 
-            double dt_sec = delta_ms / 1000.0;
-            for (auto it = particles_.begin(); it != particles_.end(); ) {
-                it->lifetime_ms -= delta_ms;
-                if (it->lifetime_ms <= 0) {
-                    it = particles_.erase(it);
-                } else {
-                    it->x += it->vx * dt_sec;
-                    it->y += it->vy * dt_sec;
-                    ++it;
-                }
-            }
-
-            for (auto it = acid_trails_.begin(); it != acid_trails_.end(); ) {
-                it->lifetime_ms -= delta_ms;
-                if (it->lifetime_ms <= 0) {
-                    it = acid_trails_.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-            if (level_ >= 5 && level_ <= 8) {
-                bool already_exists = false;
+            if (level_ >= 5 && level_ <= 8 && g.mode != GhostMode::Eaten) {
+                bool on_acid = false;
                 for (const auto& trail : acid_trails_) {
-                    if (trail.pos == pacman_.position) {
-                        already_exists = true;
+                    if (trail.pos == g.position) {
+                        on_acid = true;
                         break;
                     }
                 }
-                if (!already_exists) {
-                    acid_trails_.push_back(AcidTrail{ .pos = pacman_.position, .lifetime_ms = 3000 });
+                if (on_acid) {
+                    interval *= 2;
                 }
             }
-
-            for (auto it = lava_tiles_.begin(); it != lava_tiles_.end(); ) {
-                if (it->warning_ms > 0) {
-                    it->warning_ms -= delta_ms;
-                    ++it;
-                } else if (it->active_ms > 0) {
-                    it->active_ms -= delta_ms;
-                    if (pacman_.position == it->pos && !immortal_ &&
-                        !(hasPowerup(PowerupKind::LavaResist) && lava_resist_active_)) {
-                        pacmanCaught();
-                    }
-                    ++it;
-                } else {
-                    it = lava_tiles_.erase(it);
-                }
-            }
-            if ((level_ >= 13 && level_ <= 16) || (level_ >= 27 && level_ <= 29)) {
-                lava_spawn_timer_ms_ -= delta_ms;
-                if (lava_spawn_timer_ms_ <= 0) {
-                    lava_spawn_timer_ms_ = 3000 + rng_() % 3000;
-                    std::vector<Vec2> empty_cells;
-                    for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
-                        for (int x = 0; x < Config::MAP_WIDTH; ++x) {
-                            if (map_.getTile(x, y) == TileType::Empty && !(y >= 12 && y <= 16 && x >= 10 && x <= 17)) {
-                                empty_cells.push_back({x, y});
-                            }
-                        }
-                    }
-                    if (!empty_cells.empty()) {
-                        Vec2 pos = empty_cells[rng_() % empty_cells.size()];
-                        lava_tiles_.push_back(LavaTile{ .pos = pos, .warning_ms = 1500, .active_ms = 1500 });
+            if (level_ >= 13 && level_ <= 16) {
+                bool on_lava = false;
+                for (const auto& lava : lava_tiles_) {
+                    if (lava.pos == g.position && lava.warning_ms <= 0 && lava.active_ms > 0) {
+                        on_lava = true;
+                        break;
                     }
                 }
-            }
-
-            if (level_ >= 9 && level_ <= 12) {
-                Vec2 pos = pacman_.position;
-                bool warped = false;
-                if (pos == portal_A1_ && !pac_just_warped_) {
-                    pacman_.position = portal_A2_;
-                    pac_just_warped_ = true;
-                    warped = true;
-                } else if (pos == portal_A2_ && !pac_just_warped_) {
-                    pacman_.position = portal_A1_;
-                    pac_just_warped_ = true;
-                    warped = true;
-                } else if (pos == portal_B1_ && !pac_just_warped_) {
-                    pacman_.position = portal_B2_;
-                    pac_just_warped_ = true;
-                    warped = true;
-                } else if (pos == portal_B2_ && !pac_just_warped_) {
-                    pacman_.position = portal_B1_;
-                    pac_just_warped_ = true;
-                    warped = true;
-                } else if (pos != portal_A1_ && pos != portal_A2_ && pos != portal_B1_ && pos != portal_B2_) {
-                    pac_just_warped_ = false;
-                }
-                if (warped && hasPowerup(PowerupKind::WarpStun)) {
-                    warp_stun_timer_ms_ = 700;
-                    spawnParticleBurst(pacman_.position, levelThemeColor(level_));
+                if (on_lava) {
+                    interval = interval * 3 / 4;
                 }
             }
-
-            for (size_t i = 0; i < ghosts_.size(); ++i) {
-                updateGhostAI(ghosts_[i], delta_ms);
+            if (level_ >= 21 && level_ <= 23 && ghost_blitz_timer_ms_ > 0 && g.mode != GhostMode::Eaten) {
+                interval = interval * 2 / 3;
+            }
+            if (hasPowerup(PowerupKind::GhostSlow) && g.mode != GhostMode::Eaten) {
+                interval = static_cast<int>(interval * 118 / 100);
             }
 
-            int pac_interval = Config::PAC_MOVE_INTERVAL;
-            if (cheat_super_speed_) {
-                pac_interval = Config::PAC_MOVE_INTERVAL * 4 / 10;
-            } else if (speed_boost_timer_ms_ > 0 || pac_speed_timer_ms_ > 0) {
-                pac_interval = static_cast<int>(Config::PAC_MOVE_INTERVAL * Config::PAC_SPEED_BOOST_FACTOR);
-            } else if (fever_active_ && fever_timer_ms_ > 0) {
-                pac_interval = static_cast<int>(Config::PAC_MOVE_INTERVAL * Config::FEVER_SPEED_FACTOR);
-            } else if (hasPowerup(PowerupKind::PacSpeed)) {
-                pac_interval = static_cast<int>(Config::PAC_MOVE_INTERVAL * 85 / 100);
-            }
-            pac_move_accumulator_ += delta_ms;
-            while (pac_move_accumulator_ >= pac_interval) {
-                pac_move_accumulator_ -= pac_interval;
-                pacman_.tryMove(map_);
-                pacman_.advanceAnim();
+            ghost_accumulators_[i] += delta_ms;
+            while (ghost_accumulators_[i] >= interval) {
+                ghost_accumulators_[i] -= interval;
+                moveGhost(g);
+
+                if (level_ >= 9 && level_ <= 12) {
+                    Vec2 pos = g.position;
+                    if (pos == portal_A1_) {
+                        g.position = portal_A2_;
+                    } else if (pos == portal_A2_) {
+                        g.position = portal_A1_;
+                    } else if (pos == portal_B1_) {
+                        g.position = portal_B2_;
+                    } else if (pos == portal_B2_) {
+                        g.position = portal_B1_;
+                    }
+                }
+
                 checkCollisions();
             }
-
-            for (size_t i = 0; i < ghosts_.size(); ++i) {
-                auto& g = ghosts_[i];
-                if ((ice_freeze_timer_ms_ > 0 || ghost_freeze_timer_ms_ > 0 || cheat_freeze_ghosts_ || warp_stun_timer_ms_ > 0) && g.mode != GhostMode::Eaten) {
-                    continue;
-                }
-
-                int interval = Config::GHOST_MOVE_INTERVAL;
-                if (g.mode == GhostMode::Frightened) {
-                    interval = Config::GHOST_MOVE_INTERVAL * 2;
-                } else if (g.mode == GhostMode::Eaten) {
-                    interval = Config::GHOST_MOVE_INTERVAL / 2;
-                }
-
-                if (level_ >= 5 && level_ <= 8 && g.mode != GhostMode::Eaten) {
-                    bool on_acid = false;
-                    for (const auto& trail : acid_trails_) {
-                        if (trail.pos == g.position) {
-                            on_acid = true;
-                            break;
-                        }
-                    }
-                    if (on_acid) {
-                        interval *= 2;
-                    }
-                }
-                if (level_ >= 13 && level_ <= 16) {
-                    bool on_lava = false;
-                    for (const auto& lava : lava_tiles_) {
-                        if (lava.pos == g.position && lava.warning_ms <= 0 && lava.active_ms > 0) {
-                            on_lava = true;
-                            break;
-                        }
-                    }
-                    if (on_lava) {
-                        interval = interval * 3 / 4;
-                    }
-                }
-                if (level_ >= 21 && level_ <= 23 && ghost_blitz_timer_ms_ > 0 && g.mode != GhostMode::Eaten) {
-                    interval = interval * 2 / 3;
-                }
-                if (hasPowerup(PowerupKind::GhostSlow) && g.mode != GhostMode::Eaten) {
-                    interval = static_cast<int>(interval * 118 / 100);
-                }
-
-                ghost_accumulators_[i] += delta_ms;
-                while (ghost_accumulators_[i] >= interval) {
-                    ghost_accumulators_[i] -= interval;
-                    moveGhost(g);
-
-                    if (level_ >= 9 && level_ <= 12) {
-                        Vec2 pos = g.position;
-                        if (pos == portal_A1_) {
-                            g.position = portal_A2_;
-                        } else if (pos == portal_A2_) {
-                            g.position = portal_A1_;
-                        } else if (pos == portal_B1_) {
-                            g.position = portal_B2_;
-                        } else if (pos == portal_B2_) {
-                            g.position = portal_B1_;
-                        }
-                    }
-
-                    checkCollisions();
-                }
-            }
-
-            afk_timer_ms_ += delta_ms;
-            if (afk_timer_ms_ >= 20000) {
-                phase_ = GamePhase::Screensaver;
-                screensaver_x_ = -20.0;
-                screensaver_dir_ = 1;
-            }
-            break;
         }
 
-        case GamePhase::LevelClear:
-            for (auto it = popups_.begin(); it != popups_.end(); ) {
-                it->lifetime_ms -= delta_ms;
-                if (it->lifetime_ms <= 0) {
-                    it = popups_.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-            for (auto it = particles_.begin(); it != particles_.end(); ) {
-                it->lifetime_ms -= delta_ms;
-                if (it->lifetime_ms <= 0) {
-                    it = particles_.erase(it);
-                } else {
-                    it->x += it->vx * (delta_ms / 1000.0);
-                    it->y += it->vy * (delta_ms / 1000.0);
-                    ++it;
-                }
-            }
-            phase_timer_ms_ -= delta_ms;
-            if (phase_timer_ms_ <= 0) {
-                finishLevelClear();
+        afk_timer_ms_ += delta_ms;
+        if (afk_timer_ms_ >= 20000) {
+            phase_           = GamePhase::Screensaver;
+            screensaver_x_   = -20.0;
+            screensaver_dir_ = 1;
+        }
+        break;
+    }
+
+    case GamePhase::LevelClear:
+        for (auto it = popups_.begin(); it != popups_.end();) {
+            it->lifetime_ms -= delta_ms;
+            if (it->lifetime_ms <= 0) {
+                it = popups_.erase(it);
             } else {
-                if (phase_timer_ms_ % 200 < delta_ms) {
-                    spawnParticleBurst(pacman_.position,
-                                       static_cast<int>(phase_timer_ms_ / 200) % 2 == 0
-                                           ? Color{255, 255, 0}
-                                           : Color{255, 183, 174});
-                }
+                ++it;
             }
-            break;
-
-        case GamePhase::PacDying:
-            phase_timer_ms_ -= delta_ms;
-            if (phase_timer_ms_ <= 0) {
-                lives_--;
-                if (lives_ <= 0) {
-                    startGameOver();
-                } else {
-                    startGetReady();
-                }
+        }
+        for (auto it = particles_.begin(); it != particles_.end();) {
+            it->lifetime_ms -= delta_ms;
+            if (it->lifetime_ms <= 0) {
+                it = particles_.erase(it);
+            } else {
+                it->x += it->vx * (delta_ms / 1000.0);
+                it->y += it->vy * (delta_ms / 1000.0);
+                ++it;
             }
-            break;
+        }
+        phase_timer_ms_ -= delta_ms;
+        if (phase_timer_ms_ <= 0) {
+            finishLevelClear();
+        } else {
+            if (phase_timer_ms_ % 200 < delta_ms) {
+                spawnParticleBurst(pacman_.position, static_cast<int>(phase_timer_ms_ / 200) % 2 == 0 ? Color{255, 255, 0} : Color{255, 183, 174});
+            }
+        }
+        break;
 
-        case GamePhase::GameOver:
-            break;
+    case GamePhase::PacDying:
+        phase_timer_ms_ -= delta_ms;
+        if (phase_timer_ms_ <= 0) {
+            lives_--;
+            if (lives_ <= 0) {
+                startGameOver();
+            } else {
+                startGetReady();
+            }
+        }
+        break;
 
-        case GamePhase::Paused:
-            break;
+    case GamePhase::GameOver: break;
 
-        case GamePhase::DevMenu:
-        case GamePhase::DevPasswordInput:
-            break;
+    case GamePhase::Paused: break;
 
-        case GamePhase::KeyConfig:
-            break;
+    case GamePhase::DevMenu:
+    case GamePhase::DevPasswordInput: break;
+
+    case GamePhase::KeyConfig: break;
     }
     if (click_feedback_timer_ms_ > 0) {
         click_feedback_timer_ms_ -= delta_ms;
-        if (click_feedback_timer_ms_ < 0) click_feedback_timer_ms_ = 0;
+        if (click_feedback_timer_ms_ < 0)
+            click_feedback_timer_ms_ = 0;
     }
 }
 
 void GameEngine::updateGlobalModeTimer(int delta_ms) {
-    if (current_wave_ >= MODE_WAVES.size()) return;
+    if (current_wave_ >= MODE_WAVES.size())
+        return;
 
     bool any_frightened = false;
     for (const auto& g : ghosts_) {
@@ -1635,10 +1690,12 @@ void GameEngine::updateGlobalModeTimer(int delta_ms) {
             break;
         }
     }
-    if (any_frightened) return;
+    if (any_frightened)
+        return;
 
     int duration = MODE_WAVES[current_wave_].duration_ms;
-    if (duration == -1) return;
+    if (duration == -1)
+        return;
 
     global_mode_timer_ms_ += delta_ms;
     if (global_mode_timer_ms_ >= duration) {
@@ -1648,7 +1705,7 @@ void GameEngine::updateGlobalModeTimer(int delta_ms) {
         GhostMode next_mode = getGlobalMode();
         for (auto& g : ghosts_) {
             if (g.mode == GhostMode::Chase || g.mode == GhostMode::Scatter) {
-                g.mode = next_mode;
+                g.mode             = next_mode;
                 g.currentDirection = g.reverseDirection();
             }
         }
@@ -1665,45 +1722,44 @@ GhostMode GameEngine::getGlobalMode() const {
 Vec2 GameEngine::calculateGhostTarget(const Ghost& ghost) const {
     if (ghost.mode == GhostMode::Scatter) {
         switch (ghost.personality) {
-            case GhostPersonality::Blinky: return Config::BLINKY_SCATTER;
-            case GhostPersonality::Pinky:  return Config::PINKY_SCATTER;
-            case GhostPersonality::Inky:   return Config::INKY_SCATTER;
-            case GhostPersonality::Clyde:  return Config::CLYDE_SCATTER;
+        case GhostPersonality::Blinky: return Config::BLINKY_SCATTER;
+        case GhostPersonality::Pinky: return Config::PINKY_SCATTER;
+        case GhostPersonality::Inky: return Config::INKY_SCATTER;
+        case GhostPersonality::Clyde: return Config::CLYDE_SCATTER;
         }
     }
 
     if (ghost.mode == GhostMode::Chase) {
         switch (ghost.personality) {
-            case GhostPersonality::Blinky:
+        case GhostPersonality::Blinky: return pacman_.position;
+
+        case GhostPersonality::Pinky: {
+            Vec2 target = pacman_.position + directionToVec2(pacman_.currentDirection) * 4;
+            if (pacman_.currentDirection == Direction::Up) {
+                target.x -= 4;
+            }
+            return clampToMap(target);
+        }
+
+        case GhostPersonality::Inky: {
+            Vec2 pivot = pacman_.position + directionToVec2(pacman_.currentDirection) * 2;
+            if (pacman_.currentDirection == Direction::Up) {
+                pivot.x -= 2;
+            }
+            Vec2 blinky_pos = ghosts_[0].position;
+            return clampToMap(pivot + (pivot - blinky_pos));
+        }
+
+        case GhostPersonality::Clyde: {
+            int dx      = ghost.position.x - pacman_.position.x;
+            int dy      = ghost.position.y - pacman_.position.y;
+            int dist_sq = dx * dx + dy * dy;
+            if (dist_sq > 64) {
                 return pacman_.position;
-
-            case GhostPersonality::Pinky: {
-                Vec2 target = pacman_.position + directionToVec2(pacman_.currentDirection) * 4;
-                if (pacman_.currentDirection == Direction::Up) {
-                    target.x -= 4;
-                }
-                return clampToMap(target);
+            } else {
+                return Config::CLYDE_SCATTER;
             }
-
-            case GhostPersonality::Inky: {
-                Vec2 pivot = pacman_.position + directionToVec2(pacman_.currentDirection) * 2;
-                if (pacman_.currentDirection == Direction::Up) {
-                    pivot.x -= 2;
-                }
-                Vec2 blinky_pos = ghosts_[0].position;
-                return clampToMap(pivot + (pivot - blinky_pos));
-            }
-
-            case GhostPersonality::Clyde: {
-                int dx = ghost.position.x - pacman_.position.x;
-                int dy = ghost.position.y - pacman_.position.y;
-                int dist_sq = dx*dx + dy*dy;
-                if (dist_sq > 64) {
-                    return pacman_.position;
-                } else {
-                    return Config::CLYDE_SCATTER;
-                }
-            }
+        }
         }
     }
 
@@ -1723,9 +1779,12 @@ void GameEngine::moveGhost(Ghost& ghost) {
 
     if (ghost.mode == GhostMode::InHouse) {
         bool release = false;
-        if (ghost.personality == GhostPersonality::Pinky && ghost.dotCounter >= 0) release = true;
-        else if (ghost.personality == GhostPersonality::Inky && ghost.dotCounter >= 30) release = true;
-        else if (ghost.personality == GhostPersonality::Clyde && ghost.dotCounter >= 60) release = true;
+        if (ghost.personality == GhostPersonality::Pinky && ghost.dotCounter >= 0)
+            release = true;
+        else if (ghost.personality == GhostPersonality::Inky && ghost.dotCounter >= 30)
+            release = true;
+        else if (ghost.personality == GhostPersonality::Clyde && ghost.dotCounter >= 60)
+            release = true;
 
         if (release) {
             ghost.exitHouse();
@@ -1754,7 +1813,8 @@ void GameEngine::moveGhost(Ghost& ghost) {
         std::array<Direction, 4> valid_dirs;
         size_t count = 0;
         for (Direction d : {Direction::Up, Direction::Right, Direction::Down, Direction::Left}) {
-            if (d == forbidden) continue;
+            if (d == forbidden)
+                continue;
             Vec2 next = map_.wrapTunnel(ghost.position + directionToVec2(d));
             if (map_.isWalkableByGhost(next)) {
                 valid_dirs[count++] = d;
@@ -1767,12 +1827,12 @@ void GameEngine::moveGhost(Ghost& ghost) {
         }
     } else {
         Vec2 target = calculateGhostTarget(ghost);
-        next_dir = bfsNextDirection(map_, ghost.position, target, ghost.reverseDirection());
+        next_dir    = bfsNextDirection(map_, ghost.position, target, ghost.reverseDirection());
     }
 
     if (next_dir != Direction::None) {
-        ghost.position = ghost.position + directionToVec2(next_dir);
-        ghost.position = map_.wrapTunnel(ghost.position);
+        ghost.position         = ghost.position + directionToVec2(next_dir);
+        ghost.position         = map_.wrapTunnel(ghost.position);
         ghost.currentDirection = next_dir;
     }
 }
@@ -1787,7 +1847,8 @@ void GameEngine::updateGhostAI(Ghost& ghost, int delta_ms) {
 }
 
 void GameEngine::checkCollisions() {
-    if (phase_ != GamePhase::Playing) return;
+    if (phase_ != GamePhase::Playing)
+        return;
 
     TileType tile = map_.getTile(pacman_.position);
 
@@ -1840,8 +1901,7 @@ void GameEngine::checkCollisions() {
     }
 
     for (auto& g : ghosts_) {
-        if (g.position == pacman_.position ||
-            (g.prevPosition.x >= 0 && g.prevPosition == pacman_.position)) {
+        if (g.position == pacman_.position || (g.prevPosition.x >= 0 && g.prevPosition == pacman_.position)) {
             if (g.mode == GhostMode::Frightened) {
                 eatGhost(g);
             } else if (g.mode == GhostMode::Chase || g.mode == GhostMode::Scatter) {
@@ -1923,7 +1983,7 @@ void GameEngine::startMainMenu() {
 }
 
 void GameEngine::startGetReady() {
-    phase_ = GamePhase::GetReady;
+    phase_          = GamePhase::GetReady;
     phase_timer_ms_ = Config::GETREADY_DURATION;
 
     pacman_.reset();
@@ -1938,23 +1998,23 @@ void GameEngine::startGetReady() {
 }
 
 void GameEngine::startPlaying() {
-    phase_ = GamePhase::Playing;
-    current_wave_ = 0;
+    phase_                = GamePhase::Playing;
+    current_wave_         = 0;
     global_mode_timer_ms_ = 0;
-    level_start_time_ms_ = 0;
+    level_start_time_ms_  = 0;
 }
 
 void GameEngine::startDeath() {
-    phase_ = GamePhase::PacDying;
+    phase_          = GamePhase::PacDying;
     phase_timer_ms_ = Config::DEATH_ANIM_DURATION;
 }
 
 void GameEngine::startLevelClear() {
-    double par_s = Config::LEVEL_PAR_BASE_S + map_.totalDots() * Config::LEVEL_PAR_PER_DOT_S;
+    double par_s     = Config::LEVEL_PAR_BASE_S + map_.totalDots() * Config::LEVEL_PAR_PER_DOT_S;
     double elapsed_s = level_start_time_ms_ / 1000.0;
-    double penalty = 0.0;
-    int rating = computeLevelRating(elapsed_s, par_s, penalty);
-    int bonus = rating * Config::RATING_BONUS_PER_POINT;
+    double penalty   = 0.0;
+    int rating       = computeLevelRating(elapsed_s, par_s, penalty);
+    int bonus        = rating * Config::RATING_BONUS_PER_POINT;
 
     score_ += bonus;
     if (score_ > high_score_) {
@@ -1966,7 +2026,7 @@ void GameEngine::startLevelClear() {
     spawnParticleBurst(pacman_.position, {255, 255, 0});
     spawnParticleBurst(pacman_.position, {255, 183, 174});
     playSound("sounds/clear.wav");
-    phase_ = GamePhase::LevelClear;
+    phase_          = GamePhase::LevelClear;
     phase_timer_ms_ = Config::LEVEL_CLEAR_ANIM_DURATION;
 }
 
@@ -1974,13 +2034,14 @@ void GameEngine::finishLevelClear() {
     if (level_ == 30) {
         unlocked_rainbow_ = true;
         saveHighScore();
-        phase_ = GamePhase::LevelSelector;
-        main_menu_message_ = "Congratulations! You beat the game!";
+        phase_                  = GamePhase::LevelSelector;
+        main_menu_message_      = "Congratulations! You beat the game!";
         main_menu_msg_timer_ms_ = 5000;
     } else {
         if (level_ + 1 > max_unlocked_level_) {
             max_unlocked_level_ = level_ + 1;
-            if (max_unlocked_level_ > 30) max_unlocked_level_ = 30;
+            if (max_unlocked_level_ > 30)
+                max_unlocked_level_ = 30;
             saveHighScore();
         }
         level_++;
@@ -1998,7 +2059,7 @@ void GameEngine::startGameOver() {
 }
 
 void GameEngine::initRenderer() {
-    render_width_ = term_size_.x;
+    render_width_  = term_size_.x;
     render_height_ = term_size_.y;
     front_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
     back_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
@@ -2018,31 +2079,35 @@ void GameEngine::setCell(int row, int col, const Cell& cell) {
 
 void GameEngine::setTileGlyph(int row, int col, std::string glyph, Color fg, Color bg, bool bold) {
     size_t w = displayWidth(glyph);
-    Cell c1{ .glyph = std::move(glyph), .fg = fg, .bg = bg, .bold = bold };
+    Cell c1{.glyph = std::move(glyph), .fg = fg, .bg = bg, .bold = bold};
     setCell(row, col, c1);
     for (size_t k = 1; k < w; ++k) {
-        Cell pad{ .glyph = "", .fg = fg, .bg = bg, .bold = bold };
+        Cell pad{.glyph = "", .fg = fg, .bg = bg, .bold = bold};
         setCell(row, col + static_cast<int>(k), pad);
     }
 }
 
 void GameEngine::fillRow(int row, Color fg, Color bg) {
-    if (row < 0 || row >= render_height_) return;
-    Cell fill{ .glyph = " ", .fg = fg, .bg = bg };
+    if (row < 0 || row >= render_height_)
+        return;
+    Cell fill{.glyph = " ", .fg = fg, .bg = bg};
     auto& row_buf = back_buffer_[row];
     std::fill(row_buf.begin(), row_buf.end(), fill);
 }
 
 size_t GameEngine::utf8SequenceLength(unsigned char c) noexcept {
-    if (c >= 0xf0) return 4;
-    if (c >= 0xe0) return 3;
-    if (c >= 0xc0) return 2;
+    if (c >= 0xf0)
+        return 4;
+    if (c >= 0xe0)
+        return 3;
+    if (c >= 0xc0)
+        return 2;
     return 1;
 }
 
 size_t GameEngine::glyphCount(const std::string& text) const noexcept {
     size_t count = 0;
-    for (size_t i = 0; i < text.size(); ) {
+    for (size_t i = 0; i < text.size();) {
         i += utf8SequenceLength(static_cast<unsigned char>(text[i]));
         ++count;
     }
@@ -2053,7 +2118,7 @@ size_t GameEngine::glyphCount(const std::string& text) const noexcept {
 // UTF-8 glyph (emoji, CJK, etc. occupy two columns; VS16 pairs count as one).
 size_t GameEngine::displayWidth(const std::string& text) const noexcept {
     size_t w = 0;
-    for (size_t i = 0; i < text.size(); ) {
+    for (size_t i = 0; i < text.size();) {
         size_t consumed = 0;
         w += seqWidth(text, i, &consumed);
         i += consumed;
@@ -2063,15 +2128,16 @@ size_t GameEngine::displayWidth(const std::string& text) const noexcept {
 
 void GameEngine::drawString(int row, int col, const std::string& text, Color fg, Color bg, bool bold) {
     int current_col = col;
-    for (size_t i = 0; i < text.size() && current_col < render_width_; ) {
+    for (size_t i = 0; i < text.size() && current_col < render_width_;) {
         size_t consumed = 0;
-        size_t width = seqWidth(text, i, &consumed);
-        if (i + consumed > text.size()) consumed = text.size() - i;
+        size_t width    = seqWidth(text, i, &consumed);
+        if (i + consumed > text.size())
+            consumed = text.size() - i;
 
         Cell cell;
         cell.glyph.assign(text, i, consumed);
-        cell.fg = fg;
-        cell.bg = bg;
+        cell.fg   = fg;
+        cell.bg   = bg;
         cell.bold = bold;
 
         setCell(row, current_col, cell);
@@ -2081,9 +2147,9 @@ void GameEngine::drawString(int row, int col, const std::string& text, Color fg,
         for (size_t k = 1; k < width; ++k) {
             Cell pad;
             pad.glyph = "";
-            pad.fg = fg;
-            pad.bg = bg;
-            pad.bold = bold;
+            pad.fg    = fg;
+            pad.bg    = bg;
+            pad.bold  = bold;
             setCell(row, current_col + static_cast<int>(k), pad);
         }
         current_col += static_cast<int>(width);
@@ -2093,20 +2159,22 @@ void GameEngine::drawString(int row, int col, const std::string& text, Color fg,
 
 void GameEngine::drawGradientString(int row, int col, const std::string& text, Color start_fg, Color end_fg, Color bg) {
     size_t glyph_count = 0;
-    for (size_t i = 0; i < text.size(); ) {
+    for (size_t i = 0; i < text.size();) {
         size_t consumed = 0;
         seqWidth(text, i, &consumed);
         i += consumed;
         ++glyph_count;
     }
-    if (glyph_count == 0) return;
+    if (glyph_count == 0)
+        return;
 
     int current_col = col;
-    size_t idx = 0;
-    for (size_t i = 0; i < text.size() && current_col < render_width_; ) {
+    size_t idx      = 0;
+    for (size_t i = 0; i < text.size() && current_col < render_width_;) {
         size_t consumed = 0;
-        size_t width = seqWidth(text, i, &consumed);
-        if (i + consumed > text.size()) consumed = text.size() - i;
+        size_t width    = seqWidth(text, i, &consumed);
+        if (i + consumed > text.size())
+            consumed = text.size() - i;
 
         double ratio = glyph_count > 1 ? static_cast<double>(idx) / (glyph_count - 1) : 0.0;
         Cell cell;
@@ -2121,8 +2189,8 @@ void GameEngine::drawGradientString(int row, int col, const std::string& text, C
         for (size_t k = 1; k < width; ++k) {
             Cell pad;
             pad.glyph = "";
-            pad.fg = cell.fg;
-            pad.bg = bg;
+            pad.fg    = cell.fg;
+            pad.bg    = bg;
             setCell(row, current_col + static_cast<int>(k), pad);
         }
         current_col += static_cast<int>(width);
@@ -2134,7 +2202,7 @@ void GameEngine::drawGradientString(int row, int col, const std::string& text, C
 void GameEngine::drawBox(int row, int col, int w, int h, Color fg, Color bg) {
     for (int r = row; r < row + h; ++r) {
         for (int c = col; c < col + w; ++c) {
-            Cell cell{ .glyph = " ", .fg = fg, .bg = bg };
+            Cell cell{.glyph = " ", .fg = fg, .bg = bg};
             setCell(r, c, cell);
         }
     }
@@ -2143,7 +2211,7 @@ void GameEngine::drawBox(int row, int col, int w, int h, Color fg, Color bg) {
 void GameEngine::clearBuffer(Color bg) {
     for (int r = 0; r < render_height_; ++r) {
         for (int c = 0; c < render_width_; ++c) {
-            back_buffer_[r][c] = Cell{ .glyph = " ", .fg = {255, 255, 255}, .bg = bg };
+            back_buffer_[r][c] = Cell{.glyph = " ", .fg = {255, 255, 255}, .bg = bg};
         }
     }
 }
@@ -2151,25 +2219,25 @@ void GameEngine::clearBuffer(Color bg) {
 void GameEngine::presentFrame() {
     output_batch_.clear();
 
-    float fade = 1.0f;
+    float fade       = 1.0f;
     bool fade_active = false;
-    if (phase_ != GamePhase::GetReady && phase_ != GamePhase::Playing &&
-        phase_ != GamePhase::PacDying &&
-        phase_ != GamePhase::Paused &&
+    if (phase_ != GamePhase::GetReady && phase_ != GamePhase::Playing && phase_ != GamePhase::PacDying && phase_ != GamePhase::Paused &&
         phase_ != GamePhase::LevelClear) {
         if (fade_animation_.state == AnimationController::State::FadingIn) {
             Color fc = fade_animation_.getCurrentColor();
-            fade = (fc.r + fc.g + fc.b) / 765.0f;
-            if (fade < 0.0f) fade = 0.0f;
-            if (fade > 1.0f) fade = 1.0f;
+            fade     = (fc.r + fc.g + fc.b) / 765.0f;
+            if (fade < 0.0f)
+                fade = 0.0f;
+            if (fade > 1.0f)
+                fade = 1.0f;
             fade_active = true;
         }
     }
 
-    Color current_fg = {0, 0, 0};
-    Color current_bg = {0, 0, 0};
-    bool current_bold = false;
-    bool current_blink = false;
+    Color current_fg       = {0, 0, 0};
+    Color current_bg       = {0, 0, 0};
+    bool current_bold      = false;
+    bool current_blink     = false;
     bool style_initialized = false;
 
     auto appendInt = [&](int val) {
@@ -2185,27 +2253,34 @@ void GameEngine::presentFrame() {
         }
     };
 
-
     auto appendStyle = [&](const Color& fg, const Color& bg, bool bold, bool blink) {
         output_batch_ += "\033[0m";
 
         output_batch_ += "\033[38;2;";
-        appendInt(fg.r); output_batch_ += ';';
-        appendInt(fg.g); output_batch_ += ';';
-        appendInt(fg.b); output_batch_ += 'm';
+        appendInt(fg.r);
+        output_batch_ += ';';
+        appendInt(fg.g);
+        output_batch_ += ';';
+        appendInt(fg.b);
+        output_batch_ += 'm';
 
         output_batch_ += "\033[48;2;";
-        appendInt(bg.r); output_batch_ += ';';
-        appendInt(bg.g); output_batch_ += ';';
-        appendInt(bg.b); output_batch_ += 'm';
+        appendInt(bg.r);
+        output_batch_ += ';';
+        appendInt(bg.g);
+        output_batch_ += ';';
+        appendInt(bg.b);
+        output_batch_ += 'm';
 
-        if (bold) output_batch_ += "\033[1m";
-        if (blink) output_batch_ += "\033[5m";
+        if (bold)
+            output_batch_ += "\033[1m";
+        if (blink)
+            output_batch_ += "\033[5m";
 
-        current_fg = fg;
-        current_bg = bg;
-        current_bold = bold;
-        current_blink = blink;
+        current_fg        = fg;
+        current_bg        = bg;
+        current_bold      = bold;
+        current_blink     = blink;
         style_initialized = true;
     };
 
@@ -2225,7 +2300,8 @@ void GameEngine::presentFrame() {
             const Cell& back = back_buffer_[r][c];
             // Continuation cells of a two-column glyph (empty glyph) are fully
             // covered by that glyph in the terminal; never write to them.
-            if (back.glyph.empty()) continue;
+            if (back.glyph.empty())
+                continue;
             const Cell& front = front_buffer_[r][c];
 
             if (fade_active || back != front) {
@@ -2238,12 +2314,8 @@ void GameEngine::presentFrame() {
                 Color out_fg = back.fg;
                 Color out_bg = back.bg;
                 if (fade_active) {
-                    out_fg = { static_cast<uint8_t>(back.fg.r * fade),
-                               static_cast<uint8_t>(back.fg.g * fade),
-                               static_cast<uint8_t>(back.fg.b * fade) };
-                    out_bg = { static_cast<uint8_t>(back.bg.r * fade),
-                               static_cast<uint8_t>(back.bg.g * fade),
-                               static_cast<uint8_t>(back.bg.b * fade) };
+                    out_fg = {static_cast<uint8_t>(back.fg.r * fade), static_cast<uint8_t>(back.fg.g * fade), static_cast<uint8_t>(back.fg.b * fade)};
+                    out_bg = {static_cast<uint8_t>(back.bg.r * fade), static_cast<uint8_t>(back.bg.g * fade), static_cast<uint8_t>(back.bg.b * fade)};
                 }
 
                 if (!style_initialized || out_fg != current_fg || out_bg != current_bg || back.bold != current_bold || back.blink != current_blink) {
@@ -2266,152 +2338,143 @@ void GameEngine::presentFrame() {
 }
 
 void GameEngine::render() {
-    current_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()
-    ).count();
+    current_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
     clearBuffer();
     apply_menu_theme_ = false;
 
     switch (phase_) {
-        case GamePhase::MainMenu:
-        case GamePhase::UsernameInput:
-            apply_menu_theme_ = true;
-            renderMainMenu();
-            if (phase_ == GamePhase::UsernameInput) {
-                int c_row = render_height_ / 2;
-                int c_col = render_width_ / 2;
-                drawDoubleBorderBox(c_row - 2, c_col - 16, 32, 6, {255, 255, 0}, {0, 0, 0});
-                drawString(c_row - 2, c_col - 5, " USERNAME ", {255, 255, 0});
-                drawString(c_row, c_col - 14, "> " + input_username_ + "_", {255, 255, 255});
-                drawString(c_row + 2, c_col - 13, "ESC: Cancel  ENTER: Set", {150, 150, 150});
-            }
-            apply_menu_theme_ = false;
-            break;
-
-        case GamePhase::Settings:
-            apply_menu_theme_ = true;
-            renderSettings();
-            apply_menu_theme_ = false;
-            break;
-
-        case GamePhase::RedeemInput:
-            apply_menu_theme_ = true;
-            renderRedeem();
-            apply_menu_theme_ = false;
-            break;
-
-        case GamePhase::Stats:
-            apply_menu_theme_ = true;
-            renderStats();
-            apply_menu_theme_ = false;
-            break;
-
-        case GamePhase::LevelSelector:
-            apply_menu_theme_ = true;
-            renderLevelSelector();
-            apply_menu_theme_ = false;
-            break;
-
-        case GamePhase::KeyConfig:
-            apply_menu_theme_ = true;
-            renderKeyConfig();
-            apply_menu_theme_ = false;
-            break;
-
-        case GamePhase::Screensaver:
-            renderScreensaver();
-            break;
-
-        case GamePhase::GetReady: {
-            const Viewport vp = getViewport();
-            renderMap(&vp);
-            renderEntities(&vp);
-            renderEffects(&vp);
-            renderHUD();
-            apply_menu_theme_ = true;
-            renderGetReady();
-            apply_menu_theme_ = false;
-            break;
+    case GamePhase::MainMenu:
+    case GamePhase::UsernameInput:
+        apply_menu_theme_ = true;
+        renderMainMenu();
+        if (phase_ == GamePhase::UsernameInput) {
+            int c_row = render_height_ / 2;
+            int c_col = render_width_ / 2;
+            drawDoubleBorderBox(c_row - 2, c_col - 16, 32, 6, {255, 255, 0}, {0, 0, 0});
+            drawString(c_row - 2, c_col - 5, " USERNAME ", {255, 255, 0});
+            drawString(c_row, c_col - 14, "> " + input_username_ + "_", {255, 255, 255});
+            drawString(c_row + 2, c_col - 13, "ESC: Cancel  ENTER: Set", {150, 150, 150});
         }
+        apply_menu_theme_ = false;
+        break;
 
-        case GamePhase::LevelClear: {
-            const Viewport vp = getViewport();
-            renderMap(&vp);
-            renderEntities(&vp);
-            renderEffects(&vp);
-            renderHUD();
-            break;
-        }
+    case GamePhase::Settings:
+        apply_menu_theme_ = true;
+        renderSettings();
+        apply_menu_theme_ = false;
+        break;
 
-        case GamePhase::Playing:
-        case GamePhase::Paused:
-        case GamePhase::DevMenu:
-        case GamePhase::DevPasswordInput: {
-            const Viewport vp = getViewport();
-            renderMap(&vp);
-            renderEntities(&vp);
-            renderEffects(&vp);
-            renderHUD();
-            if (phase_ == GamePhase::Paused) {
-                int center_row = render_height_ / 2;
-                int center_col = render_width_ / 2;
-                apply_menu_theme_ = true;
+    case GamePhase::RedeemInput:
+        apply_menu_theme_ = true;
+        renderRedeem();
+        apply_menu_theme_ = false;
+        break;
 
-                drawTitleBorderBox(center_row - 4, center_col - 15, 31, 8, " GAME PAUSED ", {0, 255, 255}, {0, 0, 0});
+    case GamePhase::Stats:
+        apply_menu_theme_ = true;
+        renderStats();
+        apply_menu_theme_ = false;
+        break;
 
-                std::array<std::string, 4> options = {
-                    "Resume Game",
-                    "Restart Level",
-                    "Return to Menu",
-                    "Quit Game"
-                };
+    case GamePhase::LevelSelector:
+        apply_menu_theme_ = true;
+        renderLevelSelector();
+        apply_menu_theme_ = false;
+        break;
 
-                int block_left = center_col - 12;
+    case GamePhase::KeyConfig:
+        apply_menu_theme_ = true;
+        renderKeyConfig();
+        apply_menu_theme_ = false;
+        break;
 
-                for (int i = 0; i < 4; ++i) {
-                    Color fg = {255, 255, 255};
-                    std::string prefix = "  ";
-                    bool bold = false;
-                    if (i == pause_menu_selection_) {
-                        if (click_feedback_timer_ms_ > 0) {
-                            fg = {255, 255, 255};
-                            bold = true;
-                        } else {
-                            fg = {255, 255, 0};
-                        }
-                        prefix = "> ";
-                    }
-                    if (isMouseHovering(center_row - 2 + i, block_left, prefix + options[i])) {
-                        fg.r = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.r) + 50));
-                        fg.g = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.g) + 50));
-                        fg.b = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.b) + 50));
+    case GamePhase::Screensaver: renderScreensaver(); break;
+
+    case GamePhase::GetReady: {
+        const Viewport vp = getViewport();
+        renderMap(&vp);
+        renderEntities(&vp);
+        renderEffects(&vp);
+        renderHUD();
+        apply_menu_theme_ = true;
+        renderGetReady();
+        apply_menu_theme_ = false;
+        break;
+    }
+
+    case GamePhase::LevelClear: {
+        const Viewport vp = getViewport();
+        renderMap(&vp);
+        renderEntities(&vp);
+        renderEffects(&vp);
+        renderHUD();
+        break;
+    }
+
+    case GamePhase::Playing:
+    case GamePhase::Paused:
+    case GamePhase::DevMenu:
+    case GamePhase::DevPasswordInput: {
+        const Viewport vp = getViewport();
+        renderMap(&vp);
+        renderEntities(&vp);
+        renderEffects(&vp);
+        renderHUD();
+        if (phase_ == GamePhase::Paused) {
+            int center_row    = render_height_ / 2;
+            int center_col    = render_width_ / 2;
+            apply_menu_theme_ = true;
+
+            drawTitleBorderBox(center_row - 4, center_col - 15, 31, 8, " GAME PAUSED ", {0, 255, 255}, {0, 0, 0});
+
+            std::array<std::string, 4> options = {"Resume Game", "Restart Level", "Return to Menu", "Quit Game"};
+
+            int block_left = center_col - 12;
+
+            for (int i = 0; i < 4; ++i) {
+                Color fg           = {255, 255, 255};
+                std::string prefix = "  ";
+                bool bold          = false;
+                if (i == pause_menu_selection_) {
+                    if (click_feedback_timer_ms_ > 0) {
+                        fg   = {255, 255, 255};
                         bold = true;
+                    } else {
+                        fg = {255, 255, 0};
                     }
-                    drawString(center_row - 2 + i, block_left, prefix + options[i], fg, {0, 0, 0}, bold);
+                    prefix = "> ";
                 }
-                apply_menu_theme_ = false;
-            } else if (phase_ == GamePhase::DevPasswordInput) {
-                renderDevPasswordInput();
-            } else if (phase_ == GamePhase::DevMenu) {
-                renderDevMenu();
+                if (isMouseHovering(center_row - 2 + i, block_left, prefix + options[i])) {
+                    fg.r = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.r) + 50));
+                    fg.g = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.g) + 50));
+                    fg.b = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.b) + 50));
+                    bold = true;
+                }
+                drawString(center_row - 2 + i, block_left, prefix + options[i], fg, {0, 0, 0}, bold);
             }
-            break;
-        }
-
-        case GamePhase::PacDying: {
-            const Viewport vp = getViewport();
-            renderMap(&vp);
-            renderEntities(&vp);
-            renderEffects(&vp);
-            renderHUD();
-            break;
-        }
-
-        case GamePhase::GameOver:
-            apply_menu_theme_ = true;
-            renderGameOver();
             apply_menu_theme_ = false;
-            break;
+        } else if (phase_ == GamePhase::DevPasswordInput) {
+            renderDevPasswordInput();
+        } else if (phase_ == GamePhase::DevMenu) {
+            renderDevMenu();
+        }
+        break;
+    }
+
+    case GamePhase::PacDying: {
+        const Viewport vp = getViewport();
+        renderMap(&vp);
+        renderEntities(&vp);
+        renderEffects(&vp);
+        renderHUD();
+        break;
+    }
+
+    case GamePhase::GameOver:
+        apply_menu_theme_ = true;
+        renderGameOver();
+        apply_menu_theme_ = false;
+        break;
     }
 }
 
@@ -2421,12 +2484,12 @@ GameEngine::Viewport GameEngine::getViewport() const {
     int req_h = Config::MAP_HEIGHT + 2;
 
     if (render_width_ >= req_w && render_height_ >= req_h) {
-        vp.start_x = 0;
-        vp.start_y = 0;
+        vp.start_x      = 0;
+        vp.start_y      = 0;
         vp.visible_cols = Config::MAP_WIDTH;
         vp.visible_rows = Config::MAP_HEIGHT;
-        vp.base_row = (render_height_ - Config::MAP_HEIGHT - 2) / 2 + 1;
-        vp.base_col = (render_width_ - req_w) / 2;
+        vp.base_row     = (render_height_ - Config::MAP_HEIGHT - 2) / 2 + 1;
+        vp.base_col     = (render_width_ - req_w) / 2;
         vp.is_scrolling = false;
     } else {
         vp.is_scrolling = true;
@@ -2436,17 +2499,21 @@ GameEngine::Viewport GameEngine::getViewport() const {
         vp.start_y = pacman_.position.y - vp.visible_rows / 2;
         vp.start_x = pacman_.position.x - vp.visible_cols / 2;
 
-        if (vp.start_y < 0) vp.start_y = 0;
+        if (vp.start_y < 0)
+            vp.start_y = 0;
         if (vp.start_y + vp.visible_rows > Config::MAP_HEIGHT) {
             vp.start_y = Config::MAP_HEIGHT - vp.visible_rows;
         }
-        if (vp.start_y < 0) vp.start_y = 0;
+        if (vp.start_y < 0)
+            vp.start_y = 0;
 
-        if (vp.start_x < 0) vp.start_x = 0;
+        if (vp.start_x < 0)
+            vp.start_x = 0;
         if (vp.start_x + vp.visible_cols > Config::MAP_WIDTH) {
             vp.start_x = Config::MAP_WIDTH - vp.visible_cols;
         }
-        if (vp.start_x < 0) vp.start_x = 0;
+        if (vp.start_x < 0)
+            vp.start_x = 0;
 
         vp.base_row = 1;
         vp.base_col = (render_width_ - vp.visible_cols * Config::TILE_RENDER_W) / 2;
@@ -2459,13 +2526,15 @@ void GameEngine::renderMap(const Viewport* vpp) {
 
     for (int vy = 0; vy < vp.visible_rows; ++vy) {
         int y = vp.start_y + vy;
-        if (y < 0 || y >= Config::MAP_HEIGHT) continue;
+        if (y < 0 || y >= Config::MAP_HEIGHT)
+            continue;
 
         for (int vx = 0; vx < vp.visible_cols; ++vx) {
             int x = vp.start_x + vx;
-            if (x < 0 || x >= Config::MAP_WIDTH) continue;
+            if (x < 0 || x >= Config::MAP_WIDTH)
+                continue;
 
-            TileType t = map_.getTile(x, y);
+            TileType t     = map_.getTile(x, y);
             int screen_row = vp.base_row + vy;
             int screen_col = vp.base_col + vx * Config::TILE_RENDER_W;
 
@@ -2474,27 +2543,75 @@ void GameEngine::renderMap(const Viewport* vpp) {
             c2.bg = {0, 0, 0};
 
             if (t == TileType::Wall) {
-                uint8_t mask = map_.wallNeighborMask({x, y});
+                uint8_t mask   = map_.wallNeighborMask({x, y});
                 std::string g1 = " ";
                 std::string g2 = " ";
                 if (use_nerd_fonts_) {
                     switch (mask) {
-                        case 0:  g1 = " ";  g2 = " ";  break;
-                        case 1:  g1 = "┃"; g2 = " ";  break;
-                        case 2:  g1 = "━"; g2 = "━"; break;
-                        case 3:  g1 = "┗"; g2 = "━"; break;
-                        case 4:  g1 = "┃"; g2 = " ";  break;
-                        case 5:  g1 = "┃"; g2 = " ";  break;
-                        case 6:  g1 = "┏"; g2 = "━"; break;
-                        case 7:  g1 = "┣"; g2 = "━"; break;
-                        case 8:  g1 = "━"; g2 = " ";  break;
-                        case 9:  g1 = "┛"; g2 = " ";  break;
-                        case 10: g1 = "━"; g2 = "━"; break;
-                        case 11: g1 = "┻"; g2 = "━"; break;
-                        case 12: g1 = "┓"; g2 = " ";  break;
-                        case 13: g1 = "┫"; g2 = " ";  break;
-                        case 14: g1 = "┳"; g2 = "━"; break;
-                        case 15: g1 = "╋"; g2 = "━"; break;
+                    case 0:
+                        g1 = " ";
+                        g2 = " ";
+                        break;
+                    case 1:
+                        g1 = "┃";
+                        g2 = " ";
+                        break;
+                    case 2:
+                        g1 = "━";
+                        g2 = "━";
+                        break;
+                    case 3:
+                        g1 = "┗";
+                        g2 = "━";
+                        break;
+                    case 4:
+                        g1 = "┃";
+                        g2 = " ";
+                        break;
+                    case 5:
+                        g1 = "┃";
+                        g2 = " ";
+                        break;
+                    case 6:
+                        g1 = "┏";
+                        g2 = "━";
+                        break;
+                    case 7:
+                        g1 = "┣";
+                        g2 = "━";
+                        break;
+                    case 8:
+                        g1 = "━";
+                        g2 = " ";
+                        break;
+                    case 9:
+                        g1 = "┛";
+                        g2 = " ";
+                        break;
+                    case 10:
+                        g1 = "━";
+                        g2 = "━";
+                        break;
+                    case 11:
+                        g1 = "┻";
+                        g2 = "━";
+                        break;
+                    case 12:
+                        g1 = "┓";
+                        g2 = " ";
+                        break;
+                    case 13:
+                        g1 = "┫";
+                        g2 = " ";
+                        break;
+                    case 14:
+                        g1 = "┳";
+                        g2 = "━";
+                        break;
+                    case 15:
+                        g1 = "╋";
+                        g2 = "━";
+                        break;
                     }
                 } else {
                     g1 = "#";
@@ -2512,8 +2629,8 @@ void GameEngine::renderMap(const Viewport* vpp) {
                     wall_color = glitchRGB(current_time_ms_);
                 } else {
                     double ratio = static_cast<double>(y) / (Config::MAP_HEIGHT - 1);
-                    uint8_t wg = static_cast<uint8_t>(180 - ratio * 140);
-                    uint8_t wb = static_cast<uint8_t>(255 - ratio * 75);
+                    uint8_t wg   = static_cast<uint8_t>(180 - ratio * 140);
+                    uint8_t wb   = static_cast<uint8_t>(255 - ratio * 75);
                     if (level_ >= 1 && level_ <= 4) {
                         wall_color = Color{0, wg, wb};
                     } else if (level_ >= 5 && level_ <= 8) {
@@ -2540,38 +2657,35 @@ void GameEngine::renderMap(const Viewport* vpp) {
             } else if (t == TileType::Dot) {
                 c1.glyph = use_nerd_fonts_ ? "·" : ".";
                 c2.glyph = " ";
-                c1.fg = tileAccentColor(x, y);
+                c1.fg    = tileAccentColor(x, y);
                 setCell(screen_row, screen_col, c1);
                 setCell(screen_row, screen_col + 1, c2);
             } else if (t == TileType::PowerPellet) {
                 c1.glyph = use_nerd_fonts_ ? "●" : "O";
                 c2.glyph = " ";
-                c1.fg = tileAccentColor(x, y);
+                c1.fg    = tileAccentColor(x, y);
                 c1.blink = true;
                 setCell(screen_row, screen_col, c1);
                 setCell(screen_row, screen_col + 1, c2);
             } else if (t == TileType::GhostDoor) {
                 c1.glyph = use_nerd_fonts_ ? "━" : "-";
                 c2.glyph = use_nerd_fonts_ ? "━" : "-";
-                c1.fg = {255, 183, 222};
-                c2.fg = {255, 183, 222};
+                c1.fg    = {255, 183, 222};
+                c2.fg    = {255, 183, 222};
                 setCell(screen_row, screen_col, c1);
                 setCell(screen_row, screen_col + 1, c2);
             } else if (t == TileType::Cherry) {
-                setTileGlyph(screen_row, screen_col,
-                             use_nerd_fonts_ ? "🍒" : "c", Color{255, 0, 0});
+                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "🍒" : "c", Color{255, 0, 0});
             } else if (t == TileType::GoldenApple) {
-                setTileGlyph(screen_row, screen_col,
-                             use_nerd_fonts_ ? "🍏" : "a", Color{255, 215, 0});
+                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "🍏" : "a", Color{255, 215, 0});
             } else if (t == TileType::Heart) {
-                setTileGlyph(screen_row, screen_col,
-                             use_nerd_fonts_ ? "❤️" : "h", Color{255, 105, 180});
+                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "❤️" : "h", Color{255, 105, 180});
             } else if (t >= TileType::LetterP && t <= TileType::LetterM) {
                 int letter_idx = static_cast<int>(t) - static_cast<int>(TileType::LetterP);
-                c1.glyph = std::string(1, "PACTERM"[letter_idx]);
-                c2.glyph = " ";
-                c1.fg = Color{255, 215, 0};
-                c1.blink = true;
+                c1.glyph       = std::string(1, "PACTERM"[letter_idx]);
+                c2.glyph       = " ";
+                c1.fg          = Color{255, 215, 0};
+                c1.blink       = true;
                 setCell(screen_row, screen_col, c1);
                 setCell(screen_row, screen_col + 1, c2);
             }
@@ -2588,8 +2702,8 @@ void GameEngine::renderEntities(const Viewport* vpp) {
 
         if (vx >= 0 && vx < vp.visible_cols && vy >= 0 && vy < vp.visible_rows) {
             Cell c1, c2;
-            c1.bg = {0, 0, 0};
-            c2.bg = {0, 0, 0};
+            c1.bg       = {0, 0, 0};
+            c2.bg       = {0, 0, 0};
             Color pm_fg = pacManColor(pacman_.position.y * 0.08 + pacman_.position.x * 0.04);
             if (isGlitchZone(pacman_.position.x, pacman_.position.y)) {
                 pm_fg = glitchRGB(current_time_ms_);
@@ -2599,24 +2713,24 @@ void GameEngine::renderEntities(const Viewport* vpp) {
 
             if (isGlitchZone(pacman_.position.x, pacman_.position.y)) {
                 const auto& glitch_glyphs = use_nerd_fonts_ ? kGlitchBlockGlyphs : kGlitchAsciiGlyphs;
-                c1.glyph = glitch_glyphs[(current_time_ms_ / 100) % 4];
-                c2.glyph = " ";
+                c1.glyph                  = glitch_glyphs[(current_time_ms_ / 100) % 4];
+                c2.glyph                  = " ";
             } else if (pacman_.animFrame() == 0 || pacman_.animFrame() == 2) {
                 if (use_nerd_fonts_) {
                     switch (pacman_.currentDirection) {
-                        case Direction::Left:  c1.glyph = "Ɔ"; break;
-                        case Direction::Right: c1.glyph = "C"; break;
-                        case Direction::Down:  c1.glyph = "∩"; break;
-                        case Direction::Up:    c1.glyph = "∪"; break;
-                        default:               c1.glyph = "Ɔ"; break;
+                    case Direction::Left: c1.glyph = "Ɔ"; break;
+                    case Direction::Right: c1.glyph = "C"; break;
+                    case Direction::Down: c1.glyph = "∩"; break;
+                    case Direction::Up: c1.glyph = "∪"; break;
+                    default: c1.glyph = "Ɔ"; break;
                     }
                 } else {
                     switch (pacman_.currentDirection) {
-                        case Direction::Left:  c1.glyph = ">"; break;
-                        case Direction::Right: c1.glyph = "<"; break;
-                        case Direction::Down:  c1.glyph = "^"; break;
-                        case Direction::Up:    c1.glyph = "v"; break;
-                        default:               c1.glyph = ">"; break;
+                    case Direction::Left: c1.glyph = ">"; break;
+                    case Direction::Right: c1.glyph = "<"; break;
+                    case Direction::Down: c1.glyph = "^"; break;
+                    case Direction::Up: c1.glyph = "v"; break;
+                    default: c1.glyph = ">"; break;
                     }
                 }
             } else {
@@ -2635,8 +2749,8 @@ void GameEngine::renderEntities(const Viewport* vpp) {
 
         if (vx >= 0 && vx < vp.visible_cols && vy >= 0 && vy < vp.visible_rows) {
             Cell c1, c2;
-            c1.bg = {0, 0, 0};
-            c2.bg = {0, 0, 0};
+            c1.bg       = {0, 0, 0};
+            c2.bg       = {0, 0, 0};
             Color pm_fg = pacManColor(pacman_.position.y * 0.08 + pacman_.position.x * 0.04);
             if (isGlitchZone(pacman_.position.x, pacman_.position.y)) {
                 pm_fg = glitchRGB(current_time_ms_);
@@ -2647,24 +2761,24 @@ void GameEngine::renderEntities(const Viewport* vpp) {
             int step = (Config::DEATH_ANIM_DURATION - phase_timer_ms_) / 300;
             if (use_nerd_fonts_) {
                 switch (step) {
-                    case 0:  c1.glyph = "◠"; break;
-                    case 1:  c1.glyph = "◡"; break;
-                    case 2:  c1.glyph = "○"; break;
-                    case 3:  c1.glyph = "·"; break;
-                    default: c1.glyph = " "; break;
+                case 0: c1.glyph = "◠"; break;
+                case 1: c1.glyph = "◡"; break;
+                case 2: c1.glyph = "○"; break;
+                case 3: c1.glyph = "·"; break;
+                default: c1.glyph = " "; break;
                 }
             } else {
                 switch (step) {
-                    case 0:  c1.glyph = "o"; break;
-                    case 1:  c1.glyph = "x"; break;
-                    case 2:  c1.glyph = "*"; break;
-                    case 3:  c1.glyph = "."; break;
-                    default: c1.glyph = " "; break;
+                case 0: c1.glyph = "o"; break;
+                case 1: c1.glyph = "x"; break;
+                case 2: c1.glyph = "*"; break;
+                case 3: c1.glyph = "."; break;
+                default: c1.glyph = " "; break;
                 }
             }
             c2.glyph = " ";
-            int r = vp.base_row + vy;
-            int c = vp.base_col + vx * Config::TILE_RENDER_W;
+            int r    = vp.base_row + vy;
+            int c    = vp.base_col + vx * Config::TILE_RENDER_W;
             setCell(r, c, c1);
             setCell(r, c + 1, c2);
         }
@@ -2672,9 +2786,12 @@ void GameEngine::renderEntities(const Viewport* vpp) {
 
     for (size_t i = 0; i < ghosts_.size(); ++i) {
         const auto& g = ghosts_[i];
-        if (phase_ == GamePhase::PacDying) continue;
-        if (level_ == 20 && i > 0) continue;
-        if (level_ == 30 && i > 0) continue;
+        if (phase_ == GamePhase::PacDying)
+            continue;
+        if (level_ == 20 && i > 0)
+            continue;
+        if (level_ == 30 && i > 0)
+            continue;
 
         int vx = g.position.x - vp.start_x;
         int vy = g.position.y - vp.start_y;
@@ -2711,31 +2828,31 @@ void GameEngine::renderEntities(const Viewport* vpp) {
             c1.bg = {0, 0, 0};
             c2.bg = {0, 0, 0};
 
-                int r = vp.base_row + vy;
-                int c = vp.base_col + vx * Config::TILE_RENDER_W;
+            int r = vp.base_row + vy;
+            int c = vp.base_col + vx * Config::TILE_RENDER_W;
 
-                if (g.mode == GhostMode::Frightened) {
-                    c1.glyph = use_nerd_fonts_ ? "ᗣ" : "M";
-                    c2.glyph = " ";
-                    if (g.isFrightenedFlashing() && ((current_time_ms_ / 200) % 2 == 0)) {
-                        c1.fg = {255, 255, 255};
-                    } else {
-                        c1.fg = {33, 33, 255};
-                    }
-                } else if (g.mode == GhostMode::Eaten) {
-                    c1.glyph = "o";
-                    c2.glyph = "o";
+            if (g.mode == GhostMode::Frightened) {
+                c1.glyph = use_nerd_fonts_ ? "ᗣ" : "M";
+                c2.glyph = " ";
+                if (g.isFrightenedFlashing() && ((current_time_ms_ / 200) % 2 == 0)) {
                     c1.fg = {255, 255, 255};
                 } else {
-                    c1.glyph = use_nerd_fonts_ ? "ᗣ" : "M";
-                    c2.glyph = " ";
-                    switch (g.personality) {
-                        case GhostPersonality::Blinky: c1.fg = {255, 0, 0}; break;
-                        case GhostPersonality::Pinky:  c1.fg = {255, 184, 255}; break;
-                        case GhostPersonality::Inky:   c1.fg = {0, 255, 255}; break;
-                        case GhostPersonality::Clyde:  c1.fg = {255, 184, 82}; break;
-                    }
+                    c1.fg = {33, 33, 255};
                 }
+            } else if (g.mode == GhostMode::Eaten) {
+                c1.glyph = "o";
+                c2.glyph = "o";
+                c1.fg    = {255, 255, 255};
+            } else {
+                c1.glyph = use_nerd_fonts_ ? "ᗣ" : "M";
+                c2.glyph = " ";
+                switch (g.personality) {
+                case GhostPersonality::Blinky: c1.fg = {255, 0, 0}; break;
+                case GhostPersonality::Pinky: c1.fg = {255, 184, 255}; break;
+                case GhostPersonality::Inky: c1.fg = {0, 255, 255}; break;
+                case GhostPersonality::Clyde: c1.fg = {255, 184, 82}; break;
+                }
+            }
             setCell(r, c, c1);
             setCell(r, c + 1, c2);
         }
@@ -2748,14 +2865,14 @@ void GameEngine::renderHUD() {
         score_str += " [MUTED]";
     }
     std::string high_str = "HIGH: " + std::to_string(high_score_) + " ";
-    int center_col = render_width_ / 2;
+    int center_col       = render_width_ / 2;
 
     Color hud_fg = {255, 255, 255};
     Color hud_bg = {0, 0, 0};
     if (fever_active_ && fever_timer_ms_ > 0) {
         double pulse = 0.5 + 0.5 * std::sin(current_time_ms_ / 120.0);
-        uint8_t m = static_cast<uint8_t>(35 + 60 * pulse);
-        hud_bg = {m, 0, m};
+        uint8_t m    = static_cast<uint8_t>(35 + 60 * pulse);
+        hud_bg       = {m, 0, m};
     }
 
     const int t = selected_general_theme_;
@@ -2764,22 +2881,22 @@ void GameEngine::renderHUD() {
     drawGradientString(0, render_width_ - high_str.size() - 2, high_str, themeAccent(t, 0.0), themeAccent(t, 1.6), hud_bg);
 
     std::string powerup_str = "";
-    Color powerup_color = {255, 255, 255};
+    Color powerup_color     = {255, 255, 255};
     if (fever_active_ && fever_timer_ms_ > 0) {
-        int sec = (fever_timer_ms_ + 999) / 1000;
-        powerup_str = "🔥 FEVER x2: " + std::to_string(sec) + "s";
+        int sec       = (fever_timer_ms_ + 999) / 1000;
+        powerup_str   = "🔥 FEVER x2: " + std::to_string(sec) + "s";
         powerup_color = {255, 0, 255};
     } else if (letter_score_mult_timer_ms_ > 0) {
-        int sec = (letter_score_mult_timer_ms_ + 999) / 1000;
-        powerup_str = "★ x2 SCORE: " + std::to_string(sec) + "s";
+        int sec       = (letter_score_mult_timer_ms_ + 999) / 1000;
+        powerup_str   = "★ x2 SCORE: " + std::to_string(sec) + "s";
         powerup_color = {255, 215, 0};
     } else if (speed_boost_timer_ms_ > 0 || pac_speed_timer_ms_ > 0) {
-        int sec = (std::max(speed_boost_timer_ms_, pac_speed_timer_ms_) + 999) / 1000;
-        powerup_str = "⚡ SPEED: " + std::to_string(sec) + "s";
+        int sec       = (std::max(speed_boost_timer_ms_, pac_speed_timer_ms_) + 999) / 1000;
+        powerup_str   = "⚡ SPEED: " + std::to_string(sec) + "s";
         powerup_color = {255, 215, 0};
     } else if (ice_freeze_timer_ms_ > 0 || ghost_freeze_timer_ms_ > 0) {
-        int sec = (std::max(ice_freeze_timer_ms_, ghost_freeze_timer_ms_) + 999) / 1000;
-        powerup_str = "❄️ FREEZE: " + std::to_string(sec) + "s";
+        int sec       = (std::max(ice_freeze_timer_ms_, ghost_freeze_timer_ms_) + 999) / 1000;
+        powerup_str   = "❄️ FREEZE: " + std::to_string(sec) + "s";
         powerup_color = {100, 255, 255};
     }
     if (!powerup_str.empty()) {
@@ -2787,11 +2904,13 @@ void GameEngine::renderHUD() {
         // occupy two columns (their continuation cells are covered by the
         // glyph itself), so displayWidth keeps the string centered and away
         // from the HIGH score instead of overrunning into it.
-        const int w = static_cast<int>(displayWidth(powerup_str));
-        int start_col = center_col - w / 2;
+        const int w       = static_cast<int>(displayWidth(powerup_str));
+        int start_col     = center_col - w / 2;
         const int max_col = render_width_ - static_cast<int>(high_str.size()) - 2 - w;
-        if (start_col > max_col) start_col = max_col;
-        if (start_col < 0) start_col = 0;
+        if (start_col > max_col)
+            start_col = max_col;
+        if (start_col < 0)
+            start_col = 0;
         drawString(0, start_col, powerup_str, powerup_color, hud_bg);
     }
 
@@ -2811,20 +2930,17 @@ void GameEngine::renderMainMenu() {
     int center_col = render_width_ / 2;
 
     const double PI_CONST = 3.14159265358979323846;
-    double phase = current_time_ms_ / 5000.0 * 2.0 * PI_CONST;
+    double phase          = current_time_ms_ / 5000.0 * 2.0 * PI_CONST;
 
     auto getPrimaryGradient = [this, phase](double offset) -> Color {
         if (selected_general_theme_ == 0) {
             double g = 195.0 + std::sin(phase + offset) * 60.0;
-            return { 255, static_cast<uint8_t>(g), 0 };
+            return {255, static_cast<uint8_t>(g), 0};
         }
         return themePrimary(selected_general_theme_, offset);
     };
 
-    auto getAccentGradient = [this](double offset) -> Color {
-        return themeAccent(selected_general_theme_, offset);
-    };
-
+    auto getAccentGradient = [this](double offset) -> Color { return themeAccent(selected_general_theme_, offset); };
 
     if (render_width_ >= 66 && render_height_ >= 22) {
         if (use_nerd_fonts_) {
@@ -2843,9 +2959,9 @@ void GameEngine::renderMainMenu() {
             drawString(center_row - 5, center_col - 28, "                                                        ", getPrimaryGradient(5.0 * 0.3));
         }
 
-        menu_accent_ = true;
+        menu_accent_           = true;
         Color border_color_top = getAccentGradient(6.0 * 0.3);
-        std::string dash_ch = use_nerd_fonts_ ? "═" : "-";
+        std::string dash_ch    = use_nerd_fonts_ ? "═" : "-";
         std::string mid_line;
         for (int i = 0; i < 58; ++i) {
             mid_line += dash_ch;
@@ -2859,10 +2975,10 @@ void GameEngine::renderMainMenu() {
         std::string bl = use_nerd_fonts_ ? "╚" : "+";
         std::string br = use_nerd_fonts_ ? "╝" : "+";
 
-        std::string ver = std::string("v") + Config::PACTERM_VERSION;
+        std::string ver       = std::string("v") + Config::PACTERM_VERSION;
         std::string ver_block = dash_ch + ver + dash_ch;
-        int vb_glyphs = 0;
-        for (size_t j = 0; j < ver_block.size(); ) {
+        int vb_glyphs         = 0;
+        for (size_t j = 0; j < ver_block.size();) {
             j += utf8SequenceLength(ver_block[j]);
             ++vb_glyphs;
         }
@@ -2888,17 +3004,9 @@ void GameEngine::renderMainMenu() {
         menu_accent_ = false;
 
         std::string install_text = isInstalledLocally() ? "Uninstall pacterm" : "Install pacterm locally";
-        std::string user_text = "Username:       " + username_;
+        std::string user_text    = "Username:       " + username_;
 
-        std::array<std::string, 7> main_options = {
-            "Start Game",
-            user_text,
-            "Stats",
-            "Redeem Code",
-            install_text,
-            "Settings",
-            "Quit"
-        };
+        std::array<std::string, 7> main_options = {"Start Game", user_text, "Stats", "Redeem Code", install_text, "Settings", "Quit"};
 
         size_t max_w = 0;
         for (const auto& o : main_options) {
@@ -2908,18 +3016,18 @@ void GameEngine::renderMainMenu() {
         int block_left = center_col - static_cast<int>(max_w / 2);
 
         for (int i = 0; i < 7; ++i) {
-            Color fg = {255, 255, 255};
+            Color fg           = {255, 255, 255};
             std::string prefix = "  ";
-            bool bold = false;
+            bool bold          = false;
             if (i == main_menu_selection_) {
                 if (click_feedback_timer_ms_ > 0) {
-                    fg = {255, 255, 255};
+                    fg   = {255, 255, 255};
                     bold = true;
                 } else {
                     double sel_phase = phase * 2.0;
-                    double r = 255.0;
-                    double g = 180.0 + std::sin(sel_phase) * 75.0;
-                    fg = { static_cast<uint8_t>(r), static_cast<uint8_t>(g), 0 };
+                    double r         = 255.0;
+                    double g         = 180.0 + std::sin(sel_phase) * 75.0;
+                    fg               = {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 0};
                 }
                 prefix = "> ";
             }
@@ -2937,7 +3045,7 @@ void GameEngine::renderMainMenu() {
         }
 
         Color label_color = {0, 255, 255};
-        Color val_color = {255, 255, 255};
+        Color val_color   = {255, 255, 255};
 
         drawString(center_row + 6, center_col - 18, "Developed by : ", label_color);
         drawString(center_row + 6, center_col - 3, "Wael Amrani Zerrifi", val_color);
@@ -2953,17 +3061,9 @@ void GameEngine::renderMainMenu() {
         drawString(center_row - 4, center_col + 6, "[v" + std::string(Config::PACTERM_VERSION) + "]", {100, 100, 100});
 
         std::string install_text = isInstalledLocally() ? "Uninstall pacterm" : "Install pacterm";
-        std::string user_text = "User: " + username_;
+        std::string user_text    = "User: " + username_;
 
-        std::array<std::string, 7> main_options = {
-            "Start Game",
-            user_text,
-            "Stats",
-            "Redeem Code",
-            install_text,
-            "Settings",
-            "Quit"
-        };
+        std::array<std::string, 7> main_options = {"Start Game", user_text, "Stats", "Redeem Code", install_text, "Settings", "Quit"};
 
         size_t max_w = 0;
         for (const auto& o : main_options) {
@@ -2973,18 +3073,18 @@ void GameEngine::renderMainMenu() {
         int block_left = center_col - static_cast<int>(max_w / 2);
 
         for (int i = 0; i < 7; ++i) {
-            Color fg = {255, 255, 255};
+            Color fg           = {255, 255, 255};
             std::string prefix = "  ";
-            bool bold = false;
+            bool bold          = false;
             if (i == main_menu_selection_) {
                 if (click_feedback_timer_ms_ > 0) {
-                    fg = {255, 255, 255};
+                    fg   = {255, 255, 255};
                     bold = true;
                 } else {
                     double sel_phase = phase * 2.0;
-                    double r = 255.0;
-                    double g = 180.0 + std::sin(sel_phase) * 75.0;
-                    fg = { static_cast<uint8_t>(r), static_cast<uint8_t>(g), 0 };
+                    double r         = 255.0;
+                    double g         = 180.0 + std::sin(sel_phase) * 75.0;
+                    fg               = {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 0};
                 }
                 prefix = "> ";
             }
@@ -3016,20 +3116,12 @@ void GameEngine::renderSettings() {
         drawDoubleBorderBox(center_row - 5, center_col - 22, 44, 11, {0, 255, 255}, {0, 0, 0});
         drawString(center_row - 5, center_col - 5, " SETTINGS ", {255, 255, 0});
 
-        std::string nf_text = "Nerd Fonts:     " + std::string(use_nerd_fonts_ ? "ON" : "OFF");
+        std::string nf_text    = "Nerd Fonts:     " + std::string(use_nerd_fonts_ ? "ON" : "OFF");
         std::string sound_text = "Sound:          " + std::string(muted_ ? "OFF" : "ON");
         std::string theme_text = std::string("General Theme:  ") + std::string(theme_names[selected_general_theme_]);
-        std::string pm_text = std::string("Pac-Man Theme:  ") + std::string(theme_names[selected_pacman_color_]);
+        std::string pm_text    = std::string("Pac-Man Theme:  ") + std::string(theme_names[selected_pacman_color_]);
 
-        const std::array<std::string, 7> options = {
-            theme_text,
-            nf_text,
-            sound_text,
-            pm_text,
-            "Configure Keys",
-            "Reset",
-            "Back to Menu"
-        };
+        const std::array<std::string, 7> options = {theme_text, nf_text, sound_text, pm_text, "Configure Keys", "Reset", "Back to Menu"};
 
         size_t max_w = 0;
         for (const auto& o : options) {
@@ -3039,11 +3131,11 @@ void GameEngine::renderSettings() {
         int block_left = center_col - static_cast<int>(max_w / 2);
 
         for (int i = 0; i < 7; ++i) {
-            Color fg = {255, 255, 255};
+            Color fg           = {255, 255, 255};
             std::string prefix = "  ";
-            bool bold = false;
+            bool bold          = false;
             if (i == settings_selection_) {
-                fg = {255, 200, 0};
+                fg     = {255, 200, 0};
                 prefix = "> ";
             }
             std::string draw_text = prefix + options[i];
@@ -3065,15 +3157,13 @@ void GameEngine::renderSettings() {
     } else {
         drawString(center_row - 7, center_col - 4, " SETTINGS ", {255, 255, 0});
 
-        const std::array<std::string, 7> options = {
-            std::string("Theme: ") + std::string(theme_names[selected_general_theme_]),
-            "Nerd Fonts: " + std::string(use_nerd_fonts_ ? "ON" : "OFF"),
-            "Sound: " + std::string(muted_ ? "OFF" : "ON"),
-            std::string("Pac-Man Theme: ") + std::string(theme_names[selected_pacman_color_]),
-            "Configure Keys",
-            "Reset",
-            "Back to Menu"
-        };
+        const std::array<std::string, 7> options = {std::string("Theme: ") + std::string(theme_names[selected_general_theme_]),
+                                                    "Nerd Fonts: " + std::string(use_nerd_fonts_ ? "ON" : "OFF"),
+                                                    "Sound: " + std::string(muted_ ? "OFF" : "ON"),
+                                                    std::string("Pac-Man Theme: ") + std::string(theme_names[selected_pacman_color_]),
+                                                    "Configure Keys",
+                                                    "Reset",
+                                                    "Back to Menu"};
 
         size_t max_w = 0;
         for (const auto& o : options) {
@@ -3083,10 +3173,10 @@ void GameEngine::renderSettings() {
         int block_left = center_col - static_cast<int>(max_w / 2);
 
         for (int i = 0; i < 7; ++i) {
-            Color fg = {255, 255, 255};
+            Color fg           = {255, 255, 255};
             std::string prefix = "  ";
             if (i == settings_selection_) {
-                fg = {255, 200, 0};
+                fg     = {255, 200, 0};
                 prefix = "> ";
             }
             drawString(center_row - 4 + i, block_left, prefix + options[i], fg, {0, 0, 0}, false);
@@ -3100,91 +3190,88 @@ void GameEngine::renderSettings() {
 
 void GameEngine::activateSettingsSelection() {
     switch (settings_selection_) {
-        case 0:
-        {
-            int temp = selected_general_theme_;
-            do {
-                temp = (temp + 1) % Config::THEME_COUNT;
-            } while (isColorLocked(temp));
-            selected_general_theme_ = temp;
-            saveHighScore();
-            break;
-        }
-        case 1:
-            use_nerd_fonts_ = !use_nerd_fonts_;
-            saveHighScore();
-            break;
-        case 2:
-            muted_ = !muted_;
-            saveHighScore();
-            break;
-        case 3:
-        {
-            int temp = selected_pacman_color_;
-            do {
-                temp = (temp + 1) % Config::THEME_COUNT;
-            } while (isColorLocked(temp));
-            selected_pacman_color_ = temp;
-            saveHighScore();
-            break;
-        }
-        case 4:
-            phase_ = GamePhase::KeyConfig;
-            key_config_selection_ = 0;
-            is_binding_ = false;
-            break;
-        case 5:
-        {
-            const char* home_env = std::getenv("HOME");
-            if (home_env) {
-                try {
-                    std::filesystem::remove_all(std::filesystem::path(home_env) / ".pacterm");
-                } catch (...) {}
-            }
+    case 0: {
+        int temp = selected_general_theme_;
+        do {
+            temp = (temp + 1) % Config::THEME_COUNT;
+        } while (isColorLocked(temp));
+        selected_general_theme_ = temp;
+        saveHighScore();
+        break;
+    }
+    case 1:
+        use_nerd_fonts_ = !use_nerd_fonts_;
+        saveHighScore();
+        break;
+    case 2:
+        muted_ = !muted_;
+        saveHighScore();
+        break;
+    case 3: {
+        int temp = selected_pacman_color_;
+        do {
+            temp = (temp + 1) % Config::THEME_COUNT;
+        } while (isColorLocked(temp));
+        selected_pacman_color_ = temp;
+        saveHighScore();
+        break;
+    }
+    case 4:
+        phase_                = GamePhase::KeyConfig;
+        key_config_selection_ = 0;
+        is_binding_           = false;
+        break;
+    case 5: {
+        const char* home_env = std::getenv("HOME");
+        if (home_env) {
             try {
-                std::filesystem::remove(getCacheFilePath());
+                std::filesystem::remove_all(std::filesystem::path(home_env) / ".pacterm");
             } catch (...) {}
-            high_score_ = 0;
-            muted_ = false;
-            use_nerd_fonts_ = true;
-            if (isAzertyLayout()) {
-                custom_key_up_ = 'z';
-                custom_key_down_ = 's';
-                custom_key_left_ = 'q';
-                custom_key_right_ = 'd';
-            } else {
-                custom_key_up_ = 'w';
-                custom_key_down_ = 's';
-                custom_key_left_ = 'a';
-                custom_key_right_ = 'd';
-            }
-            custom_key_pause_ = 'p';
-            unlocked_rainbow_ = false;
-            selected_general_theme_ = 0;
-            selected_pacman_color_ = 0;
-            letter_hunt_ = LetterHuntState{};
-            pacterm_plus_unlocked_ = false;
-            games_played_ = 0;
-            dots_eaten_ = 0;
-            ghosts_eaten_ = 0;
-            deaths_ = 0;
-            power_pellets_ = 0;
-            time_played_ms_ = 0;
-            username_ = "Wael";
-            const char* env_nf = std::getenv("PACMAN_NERD_FONTS");
-            if (env_nf && std::string(env_nf) == "0") {
-                use_nerd_fonts_ = false;
-            }
-            rebuildKeybindings();
-            main_menu_message_ = "Everything reset successfully!";
-            main_menu_msg_timer_ms_ = 3000;
-            break;
         }
-        case 6:
-            phase_ = GamePhase::MainMenu;
-            main_menu_message_ = "";
-            fade_animation_.fadeIn({255, 255, 255}, 300);
-            break;
+        try {
+            std::filesystem::remove(getCacheFilePath());
+        } catch (...) {}
+        high_score_     = 0;
+        muted_          = false;
+        use_nerd_fonts_ = true;
+        if (isAzertyLayout()) {
+            custom_key_up_    = 'z';
+            custom_key_down_  = 's';
+            custom_key_left_  = 'q';
+            custom_key_right_ = 'd';
+        } else {
+            custom_key_up_    = 'w';
+            custom_key_down_  = 's';
+            custom_key_left_  = 'a';
+            custom_key_right_ = 'd';
+        }
+        custom_key_pause_       = 'p';
+        unlocked_rainbow_       = false;
+        selected_general_theme_ = 0;
+        selected_pacman_color_  = 0;
+        letter_hunt_            = LetterHuntState{};
+        pacterm_plus_unlocked_  = false;
+        games_played_           = 0;
+        dots_eaten_             = 0;
+        ghosts_eaten_           = 0;
+        deaths_                 = 0;
+        power_pellets_          = 0;
+        time_played_ms_         = 0;
+        username_               = "Wael";
+        const char* env_nf      = std::getenv("PACMAN_NERD_FONTS");
+        if (env_nf && std::string(env_nf) == "0") {
+            use_nerd_fonts_ = false;
+        }
+        rebuildKeybindings();
+        main_menu_message_      = "Everything reset successfully!";
+        main_menu_msg_timer_ms_ = 3000;
+        break;
+    }
+    case 6:
+        phase_             = GamePhase::MainMenu;
+        main_menu_message_ = "";
+        fade_animation_.fadeIn({255, 255, 255}, 300);
+        break;
     }
 }
 
@@ -3207,9 +3294,9 @@ void GameEngine::renderStats() {
     int center_col = render_width_ / 2;
 
     int total_sec = time_played_ms_ / 1000;
-    int hours = total_sec / 3600;
-    int minutes = (total_sec % 3600) / 60;
-    int seconds = total_sec % 60;
+    int hours     = total_sec / 3600;
+    int minutes   = (total_sec % 3600) / 60;
+    int seconds   = total_sec % 60;
     char time_buf[32];
     std::snprintf(time_buf, sizeof(time_buf), "%d:%02d:%02d", hours, minutes, seconds);
 
@@ -3217,29 +3304,22 @@ void GameEngine::renderStats() {
         drawDoubleBorderBox(center_row - 7, center_col - 26, 53, 17, {0, 200, 255}, {0, 0, 0});
         drawString(center_row - 7, center_col - 3, " STATS ", {255, 255, 0});
 
-        std::string labels[8] = {
-            "High Score", "Games Played", "Ghosts Eaten", "Deaths",
-            "Best Level", "Dots Eaten", "Power Pellets", "Time Played"
-        };
-        std::string values[8] = {
-            std::to_string(high_score_), std::to_string(games_played_),
-            std::to_string(ghosts_eaten_), std::to_string(deaths_),
-            std::to_string(max_unlocked_level_), std::to_string(dots_eaten_),
-            std::to_string(power_pellets_), time_buf
-        };
+        std::string labels[8] = {"High Score", "Games Played", "Ghosts Eaten", "Deaths", "Best Level", "Dots Eaten", "Power Pellets", "Time Played"};
+        std::string values[8] = {std::to_string(high_score_),         std::to_string(games_played_), std::to_string(ghosts_eaten_),  std::to_string(deaths_),
+                                 std::to_string(max_unlocked_level_), std::to_string(dots_eaten_),   std::to_string(power_pellets_), time_buf};
 
-        int label_rows[4] = { center_row - 5, center_row - 2, center_row + 1, center_row + 4 };
-        int col_left  = center_col - 22;
-        int col_right = center_col + 2;
+        int label_rows[4] = {center_row - 5, center_row - 2, center_row + 1, center_row + 4};
+        int col_left      = center_col - 22;
+        int col_right     = center_col + 2;
 
         for (int i = 0; i < 4; ++i) {
             Color label_c = {180, 180, 200};
-            Color val_c = {255, 255, 255};
-            int li = i * 2;
-            drawString(label_rows[i],     col_left,  labels[li], label_c, {0, 0, 0}, false);
-            drawString(label_rows[i] + 1, col_left,  values[li], val_c, {0, 0, 0}, true);
+            Color val_c   = {255, 255, 255};
+            int li        = i * 2;
+            drawString(label_rows[i], col_left, labels[li], label_c, {0, 0, 0}, false);
+            drawString(label_rows[i] + 1, col_left, values[li], val_c, {0, 0, 0}, true);
             int ri = li + 1;
-            drawString(label_rows[i],     col_right, labels[ri], label_c, {0, 0, 0}, false);
+            drawString(label_rows[i], col_right, labels[ri], label_c, {0, 0, 0}, false);
             drawString(label_rows[i] + 1, col_right, values[ri], val_c, {0, 0, 0}, true);
         }
 
@@ -3250,12 +3330,9 @@ void GameEngine::renderStats() {
         }
     } else {
         std::string list[6] = {
-            "High Score:     " + std::to_string(high_score_),
-            "Best Level:     " + std::to_string(max_unlocked_level_),
-            "Games Played:   " + std::to_string(games_played_),
-            "Dots Eaten:     " + std::to_string(dots_eaten_),
-            "Ghosts Eaten:   " + std::to_string(ghosts_eaten_),
-            "Power Pellets:  " + std::to_string(power_pellets_),
+            "High Score:     " + std::to_string(high_score_),   "Best Level:     " + std::to_string(max_unlocked_level_),
+            "Games Played:   " + std::to_string(games_played_), "Dots Eaten:     " + std::to_string(dots_eaten_),
+            "Ghosts Eaten:   " + std::to_string(ghosts_eaten_), "Power Pellets:  " + std::to_string(power_pellets_),
         };
         for (int i = 0; i < 6; ++i) {
             Color fg = {255, 255, 255};
@@ -3266,8 +3343,7 @@ void GameEngine::renderStats() {
             Color lc = letter_hunt_.isCollected(i) ? Color{255, 215, 0} : Color{70, 70, 75};
             drawString(center_row + 3, center_col - 9 + i, std::string(1, "PACTERM"[i]), lc, {0, 0, 0}, false);
         }
-        drawString(center_row + 4, center_col - 14, "Deaths: " + std::to_string(deaths_) +
-                   "   Time: " + std::to_string(total_sec) + "s", {255, 255, 255});
+        drawString(center_row + 4, center_col - 14, "Deaths: " + std::to_string(deaths_) + "   Time: " + std::to_string(total_sec) + "s", {255, 255, 255});
     }
 }
 
@@ -3304,36 +3380,28 @@ void GameEngine::saveHighScore() {
     } catch (...) {
         return;
     }
-    if (path.empty()) return;
+    if (path.empty())
+        return;
 
-    std::string key = "PacTermWaelSecure2026";
-    std::string plaintext = std::to_string(score_ > high_score_ ? score_ : high_score_) + " " + (muted_ ? "1" : "0") + " " + (use_nerd_fonts_ ? "1" : "0") + " " +
-                            std::to_string(custom_key_up_) + " " + std::to_string(custom_key_down_) + " " +
-                            std::to_string(custom_key_left_) + " " + std::to_string(custom_key_right_) + " " +
-                            std::to_string(custom_key_pause_) + " " +
-                            std::to_string(unlocked_rainbow_ ? 1 : 0) + " " +
-                            std::to_string(max_unlocked_level_) + " " +
-                            std::to_string(selected_pacman_color_) + " " +
-                            std::to_string(selected_general_theme_) + " " +
-                            std::to_string(games_played_) + " " +
-                            std::to_string(dots_eaten_) + " " +
-                            std::to_string(ghosts_eaten_) + " " +
-                            std::to_string(deaths_) + " " +
-                            std::to_string(power_pellets_) + " " +
-                            std::to_string(time_played_ms_) + " " +
-                            std::to_string(static_cast<int>(letter_hunt_.letter_mask)) + " " +
-                            std::to_string(pacterm_plus_unlocked_ ? 1 : 0) + " " +
-                            username_;
+    std::string key       = "PacTermWaelSecure2026";
+    std::string plaintext = std::to_string(score_ > high_score_ ? score_ : high_score_) + " " + (muted_ ? "1" : "0") + " " + (use_nerd_fonts_ ? "1" : "0") +
+                            " " + std::to_string(custom_key_up_) + " " + std::to_string(custom_key_down_) + " " + std::to_string(custom_key_left_) + " " +
+                            std::to_string(custom_key_right_) + " " + std::to_string(custom_key_pause_) + " " + std::to_string(unlocked_rainbow_ ? 1 : 0) +
+                            " " + std::to_string(max_unlocked_level_) + " " + std::to_string(selected_pacman_color_) + " " +
+                            std::to_string(selected_general_theme_) + " " + std::to_string(games_played_) + " " + std::to_string(dots_eaten_) + " " +
+                            std::to_string(ghosts_eaten_) + " " + std::to_string(deaths_) + " " + std::to_string(power_pellets_) + " " +
+                            std::to_string(time_played_ms_) + " " + std::to_string(static_cast<int>(letter_hunt_.letter_mask)) + " " +
+                            std::to_string(pacterm_plus_unlocked_ ? 1 : 0) + " " + username_;
     for (size_t i = 0; i < plaintext.size(); ++i) {
         plaintext[i] ^= key[i % key.size()];
     }
 
     try {
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
-        if (!f) return;
+        if (!f)
+            return;
         f.write(plaintext.data(), static_cast<std::streamsize>(plaintext.size()));
-    } catch (...) {
-    }
+    } catch (...) {}
 }
 
 void GameEngine::loadHighScore() {
@@ -3348,16 +3416,20 @@ void GameEngine::loadHighScore() {
     }
 
     std::ifstream f(path, std::ios::binary | std::ios::ate);
-    if (!f.is_open()) return;
+    if (!f.is_open())
+        return;
 
     const std::streamsize max_file = 4096;
-    std::streamsize size = f.tellg();
-    if (size <= 0) return;
-    if (size > max_file) size = max_file;
+    std::streamsize size           = f.tellg();
+    if (size <= 0)
+        return;
+    if (size > max_file)
+        size = max_file;
     f.seekg(0, std::ios::beg);
 
     std::string ciphertext(static_cast<size_t>(size), '\0');
-    if (!f.read(&ciphertext[0], size)) return;
+    if (!f.read(&ciphertext[0], size))
+        return;
 
     std::string key = "PacTermWaelSecure2026";
     for (size_t i = 0; i < ciphertext.size(); ++i) {
@@ -3365,96 +3437,93 @@ void GameEngine::loadHighScore() {
     }
 
     int temp_muted = 0;
-    int temp_nf = 1;
+    int temp_nf    = 1;
     int k_up = 'w', k_down = 's', k_left = 'a', k_right = 'd', k_pause = 'p';
-    int temp_unlocked = 0;
-    int temp_max_level = 1;
-    int temp_color = 0;
-    int temp_general_theme = 0;
-    int temp_games = 0;
-    int temp_dots = 0;
-    int temp_ghosts = 0;
-    int temp_deaths = 0;
-    int temp_power = 0;
-    int temp_time = 0;
-    int temp_letter_mask = 0;
+    int temp_unlocked         = 0;
+    int temp_max_level        = 1;
+    int temp_color            = 0;
+    int temp_general_theme    = 0;
+    int temp_games            = 0;
+    int temp_dots             = 0;
+    int temp_ghosts           = 0;
+    int temp_deaths           = 0;
+    int temp_power            = 0;
+    int temp_time             = 0;
+    int temp_letter_mask      = 0;
     int temp_pacterm_unlocked = 0;
-    char username_buf[128] = "";
+    char username_buf[128]    = "";
 
-    int read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]",
-                                 &high_score_, &temp_muted, &temp_nf, &k_up, &k_down, &k_left, &k_right, &k_pause,
-                                 &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games,
-                                 &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, &temp_letter_mask,
-                                 &temp_pacterm_unlocked, username_buf);
+    int read_count =
+        std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf, &k_up,
+                    &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games, &temp_dots,
+                    &temp_ghosts, &temp_deaths, &temp_power, &temp_time, &temp_letter_mask, &temp_pacterm_unlocked, username_buf);
 
     if (read_count < 21) {
-        temp_letter_mask = 0;
+        temp_letter_mask      = 0;
         temp_pacterm_unlocked = 0;
-        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]",
-                        &high_score_, &temp_muted, &temp_nf, &k_up, &k_down, &k_left, &k_right, &k_pause,
-                        &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games,
-                        &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, username_buf);
+        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf,
+                                 &k_up, &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games,
+                                 &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, username_buf);
     }
 
     if (read_count < 19) {
         temp_ghosts = 0;
         temp_deaths = 0;
-        temp_power = 0;
-        temp_time = 0;
-        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]",
-                        &high_score_, &temp_muted, &temp_nf, &k_up, &k_down, &k_left, &k_right, &k_pause,
-                        &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games,
-                        &temp_dots, username_buf);
+        temp_power  = 0;
+        temp_time   = 0;
+        read_count =
+            std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf, &k_up, &k_down,
+                        &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games, &temp_dots, username_buf);
     }
     if (read_count < 15) {
-        temp_max_level = 1;
-        temp_color = 0;
+        temp_max_level     = 1;
+        temp_color         = 0;
         temp_general_theme = 0;
-        temp_games = 0;
-        temp_dots = 0;
-        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %*d %d %d %d %127[^\r\n]",
-                                 &high_score_, &temp_muted, &temp_nf, &k_up, &k_down, &k_left, &k_right, &k_pause,
-                                 &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme,
-                                 username_buf);
+        temp_games         = 0;
+        temp_dots          = 0;
+        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %*d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf, &k_up, &k_down,
+                                 &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, username_buf);
     }
     if (read_count < 14) {
-        temp_max_level = 1;
-        temp_color = 0;
+        temp_max_level     = 1;
+        temp_color         = 0;
         temp_general_theme = 0;
-        temp_games = 0;
-        temp_dots = 0;
-        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %*d %d %d %127[^\r\n]",
-                                 &high_score_, &temp_muted, &temp_nf, &k_up, &k_down, &k_left, &k_right, &k_pause,
-                                 &temp_unlocked, &temp_max_level, &temp_color, username_buf);
+        temp_games         = 0;
+        temp_dots          = 0;
+        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %*d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf, &k_up, &k_down,
+                                 &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, username_buf);
     }
     if (read_count < 13) {
-        temp_max_level = 1;
-        temp_color = 0;
+        temp_max_level     = 1;
+        temp_color         = 0;
         temp_general_theme = 0;
-        temp_games = 0;
-        temp_dots = 0;
-        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %*d %127[^\r\n]",
-                                 &high_score_, &temp_muted, &temp_nf, &k_up, &k_down, &k_left, &k_right, &k_pause,
-                                 &temp_unlocked, username_buf);
+        temp_games         = 0;
+        temp_dots          = 0;
+        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %*d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf, &k_up, &k_down, &k_left,
+                                 &k_right, &k_pause, &temp_unlocked, username_buf);
     }
 
     if (read_count >= 3) {
-        muted_ = (temp_muted != 0);
+        muted_          = (temp_muted != 0);
         use_nerd_fonts_ = (temp_nf != 0);
     }
     if (read_count >= 8) {
-        custom_key_up_ = clampKeyCode(k_up);
-        custom_key_down_ = clampKeyCode(k_down);
-        custom_key_left_ = clampKeyCode(k_left);
+        custom_key_up_    = clampKeyCode(k_up);
+        custom_key_down_  = clampKeyCode(k_down);
+        custom_key_left_  = clampKeyCode(k_left);
         custom_key_right_ = clampKeyCode(k_right);
         custom_key_pause_ = clampKeyCode(k_pause);
     } else {
         if (isAzertyLayout()) {
-            custom_key_up_ = 'z'; custom_key_down_ = 's';
-            custom_key_left_ = 'q'; custom_key_right_ = 'd';
+            custom_key_up_    = 'z';
+            custom_key_down_  = 's';
+            custom_key_left_  = 'q';
+            custom_key_right_ = 'd';
         } else {
-            custom_key_up_ = 'w'; custom_key_down_ = 's';
-            custom_key_left_ = 'a'; custom_key_right_ = 'd';
+            custom_key_up_    = 'w';
+            custom_key_down_  = 's';
+            custom_key_left_  = 'a';
+            custom_key_right_ = 'd';
         }
         custom_key_pause_ = 'p';
     }
@@ -3464,36 +3533,46 @@ void GameEngine::loadHighScore() {
         unlocked_rainbow_ = false;
     }
 
-    max_unlocked_level_ = temp_max_level;
-    selected_pacman_color_ = temp_color;
-    selected_general_theme_ = (read_count >= 14) ? temp_general_theme : 0;
-    games_played_ = (read_count >= 15) ? temp_games : 0;
-    dots_eaten_ = (read_count >= 15) ? temp_dots : 0;
-    ghosts_eaten_ = (read_count >= 19) ? temp_ghosts : 0;
-    deaths_ = (read_count >= 19) ? temp_deaths : 0;
-    power_pellets_ = (read_count >= 19) ? temp_power : 0;
-    time_played_ms_ = (read_count >= 19) ? temp_time : 0;
+    max_unlocked_level_      = temp_max_level;
+    selected_pacman_color_   = temp_color;
+    selected_general_theme_  = (read_count >= 14) ? temp_general_theme : 0;
+    games_played_            = (read_count >= 15) ? temp_games : 0;
+    dots_eaten_              = (read_count >= 15) ? temp_dots : 0;
+    ghosts_eaten_            = (read_count >= 19) ? temp_ghosts : 0;
+    deaths_                  = (read_count >= 19) ? temp_deaths : 0;
+    power_pellets_           = (read_count >= 19) ? temp_power : 0;
+    time_played_ms_          = (read_count >= 19) ? temp_time : 0;
     letter_hunt_.letter_mask = static_cast<uint8_t>(read_count >= 21 ? (temp_letter_mask & 0x7F) : 0);
-    pacterm_plus_unlocked_ = (read_count >= 21) && (temp_pacterm_unlocked != 0);
-    if (max_unlocked_level_ < 1 || max_unlocked_level_ > 30) max_unlocked_level_ = 1;
-    if (selected_pacman_color_ < 0 || selected_pacman_color_ >= Config::THEME_COUNT) selected_pacman_color_ = 0;
+    pacterm_plus_unlocked_   = (read_count >= 21) && (temp_pacterm_unlocked != 0);
+    if (max_unlocked_level_ < 1 || max_unlocked_level_ > 30)
+        max_unlocked_level_ = 1;
+    if (selected_pacman_color_ < 0 || selected_pacman_color_ >= Config::THEME_COUNT)
+        selected_pacman_color_ = 0;
     if (isColorLocked(selected_pacman_color_)) {
         selected_pacman_color_ = 0;
     }
-    if (selected_general_theme_ < 0 || selected_general_theme_ >= Config::THEME_COUNT) selected_general_theme_ = 0;
+    if (selected_general_theme_ < 0 || selected_general_theme_ >= Config::THEME_COUNT)
+        selected_general_theme_ = 0;
     if (isColorLocked(selected_general_theme_)) {
         selected_general_theme_ = 0;
     }
-    if (games_played_ < 0) games_played_ = 0;
-    if (dots_eaten_ < 0) dots_eaten_ = 0;
-    if (ghosts_eaten_ < 0) ghosts_eaten_ = 0;
-    if (deaths_ < 0) deaths_ = 0;
-    if (power_pellets_ < 0) power_pellets_ = 0;
-    if (time_played_ms_ < 0) time_played_ms_ = 0;
+    if (games_played_ < 0)
+        games_played_ = 0;
+    if (dots_eaten_ < 0)
+        dots_eaten_ = 0;
+    if (ghosts_eaten_ < 0)
+        ghosts_eaten_ = 0;
+    if (deaths_ < 0)
+        deaths_ = 0;
+    if (power_pellets_ < 0)
+        power_pellets_ = 0;
+    if (time_played_ms_ < 0)
+        time_played_ms_ = 0;
 
     if (read_count >= 11) {
         std::string uname(username_buf);
-        if (uname.size() > 15) uname = uname.substr(0, 15);
+        if (uname.size() > 15)
+            uname = uname.substr(0, 15);
         username_ = uname;
     } else {
         username_ = "Wael";
@@ -3528,16 +3607,15 @@ bool GameEngine::isAzertyLayout() {
         while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
             std::string line(buffer);
             if (line.find("layout:") != std::string::npos) {
-                if (line.find("fr") != std::string::npos ||
-                    line.find("be") != std::string::npos ||
-                    line.find("dz") != std::string::npos) {
+                if (line.find("fr") != std::string::npos || line.find("be") != std::string::npos || line.find("dz") != std::string::npos) {
                     found = true;
                     break;
                 }
             }
         }
         pclose(pipe);
-        if (found) return true;
+        if (found)
+            return true;
     }
     const char* lang = std::getenv("LANG");
     if (lang) {
@@ -3549,107 +3627,98 @@ bool GameEngine::isAzertyLayout() {
     return false;
 }
 
-
 Color GameEngine::getRainbowColor(double offset) const {
     double p = current_time_ms_ / 5000.0 * 2.0 * 3.14159265358979323846;
     double h = p * 2.0 + offset;
     double r = std::sin(h) * 127.0 + 128.0;
     double g = std::sin(h + 2.0944) * 127.0 + 128.0;
     double b = std::sin(h + 4.1888) * 127.0 + 128.0;
-    return { static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b) };
+    return {static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
 }
 
 Color GameEngine::themePrimary(int theme, double offset) const {
     const double PI_CONST = 3.14159265358979323846;
-    const double phase = current_time_ms_ / 5000.0 * 2.0 * PI_CONST;
-    if (theme == 8) return getRainbowColor(offset);
+    const double phase    = current_time_ms_ / 5000.0 * 2.0 * PI_CONST;
+    if (theme == 8)
+        return getRainbowColor(offset);
     switch (theme) {
-        case 0:
-            return { 255, 255, 0 };
-        case 1: {
-            double g = 207.0 + std::sin(phase + offset) * 47.0;
-            double b = 227.0 + std::cos(phase + offset) * 27.0;
-            return { 0, static_cast<uint8_t>(g), static_cast<uint8_t>(b) };
-        }
-        case 2: {
-            double r = 40.0 + std::sin(phase + offset) * 40.0;
-            double b = 90.0 + std::cos(phase + offset) * 70.0;
-            return { static_cast<uint8_t>(r), 255, static_cast<uint8_t>(b) };
-        }
-        case 3: {
-            double g = 100.0 + std::sin(phase + offset) * 80.0;
-            double b = 235.0 + std::cos(phase + offset) * 20.0;
-            return { 255, static_cast<uint8_t>(g), static_cast<uint8_t>(b) };
-        }
-        case 4:
-            return { 255, static_cast<uint8_t>(70.0 + std::sin(phase + offset) * 50.0),
-                        static_cast<uint8_t>(60.0 + std::cos(phase + offset) * 50.0) };
-        case 5: {
-            double r = 160.0 + std::sin(phase + offset) * 60.0;
-            double g = 90.0 + std::cos(phase + offset) * 50.0;
-            return { static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255 };
-        }
-        case 6: {
-            double r = 120.0 + std::cos(phase + offset) * 40.0;
-            double g = 225.0 + std::sin(phase + offset) * 30.0;
-            return { static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255 };
-        }
-        case 7: {
-            double g = 175.0 + std::sin(phase + offset) * 60.0;
-            double b = 50.0 + std::cos(phase + offset) * 40.0;
-            return { 255, static_cast<uint8_t>(g), static_cast<uint8_t>(b) };
-        }
-        case 9:
-            return { 255, static_cast<uint8_t>(195.0 + std::sin(phase + offset) * 60.0), 0 };
-        default:
-            return {255, 255, 255};
+    case 0: return {255, 255, 0};
+    case 1: {
+        double g = 207.0 + std::sin(phase + offset) * 47.0;
+        double b = 227.0 + std::cos(phase + offset) * 27.0;
+        return {0, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
+    }
+    case 2: {
+        double r = 40.0 + std::sin(phase + offset) * 40.0;
+        double b = 90.0 + std::cos(phase + offset) * 70.0;
+        return {static_cast<uint8_t>(r), 255, static_cast<uint8_t>(b)};
+    }
+    case 3: {
+        double g = 100.0 + std::sin(phase + offset) * 80.0;
+        double b = 235.0 + std::cos(phase + offset) * 20.0;
+        return {255, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
+    }
+    case 4: return {255, static_cast<uint8_t>(70.0 + std::sin(phase + offset) * 50.0), static_cast<uint8_t>(60.0 + std::cos(phase + offset) * 50.0)};
+    case 5: {
+        double r = 160.0 + std::sin(phase + offset) * 60.0;
+        double g = 90.0 + std::cos(phase + offset) * 50.0;
+        return {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255};
+    }
+    case 6: {
+        double r = 120.0 + std::cos(phase + offset) * 40.0;
+        double g = 225.0 + std::sin(phase + offset) * 30.0;
+        return {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255};
+    }
+    case 7: {
+        double g = 175.0 + std::sin(phase + offset) * 60.0;
+        double b = 50.0 + std::cos(phase + offset) * 40.0;
+        return {255, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
+    }
+    case 9: return {255, static_cast<uint8_t>(195.0 + std::sin(phase + offset) * 60.0), 0};
+    default: return {255, 255, 255};
     }
 }
 
 Color GameEngine::themeAccent(int theme, double offset) const {
     const double PI_CONST = 3.14159265358979323846;
-    const double phase = current_time_ms_ / 5000.0 * 2.0 * PI_CONST;
-    if (theme == 8) return getRainbowColor(offset);
+    const double phase    = current_time_ms_ / 5000.0 * 2.0 * PI_CONST;
+    if (theme == 8)
+        return getRainbowColor(offset);
     switch (theme) {
-        case 0:
-        case 1: {
-            double g = 207.0 + std::sin(phase + offset) * 47.0;
-            double b = 227.0 + std::cos(phase + offset) * 27.0;
-            return { 0, static_cast<uint8_t>(g), static_cast<uint8_t>(b) };
-        }
-        case 2: {
-            double r = 40.0 + std::sin(phase + offset) * 40.0;
-            double b = 90.0 + std::cos(phase + offset) * 70.0;
-            return { static_cast<uint8_t>(r), 255, static_cast<uint8_t>(b) };
-        }
-        case 3: {
-            double g = 100.0 + std::sin(phase + offset) * 80.0;
-            double b = 235.0 + std::cos(phase + offset) * 20.0;
-            return { 255, static_cast<uint8_t>(g), static_cast<uint8_t>(b) };
-        }
-        case 4:
-            return { 255, static_cast<uint8_t>(70.0 + std::sin(phase + offset) * 50.0),
-                        static_cast<uint8_t>(60.0 + std::cos(phase + offset) * 50.0) };
-        case 5: {
-            double r = 160.0 + std::sin(phase + offset) * 60.0;
-            double g = 90.0 + std::cos(phase + offset) * 50.0;
-            return { static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255 };
-        }
-        case 6: {
-            double r = 120.0 + std::cos(phase + offset) * 40.0;
-            double g = 225.0 + std::sin(phase + offset) * 30.0;
-            return { static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255 };
-        }
-        case 7: {
-            double g = 175.0 + std::sin(phase + offset) * 60.0;
-            double b = 50.0 + std::cos(phase + offset) * 40.0;
-            return { 255, static_cast<uint8_t>(g), static_cast<uint8_t>(b) };
-        }
-        case 9:
-            return { 0, static_cast<uint8_t>(207.0 + std::sin(phase + offset) * 47.0),
-                        static_cast<uint8_t>(227.0 + std::cos(phase + offset) * 27.0) };
-        default:
-            return {255, 255, 255};
+    case 0:
+    case 1: {
+        double g = 207.0 + std::sin(phase + offset) * 47.0;
+        double b = 227.0 + std::cos(phase + offset) * 27.0;
+        return {0, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
+    }
+    case 2: {
+        double r = 40.0 + std::sin(phase + offset) * 40.0;
+        double b = 90.0 + std::cos(phase + offset) * 70.0;
+        return {static_cast<uint8_t>(r), 255, static_cast<uint8_t>(b)};
+    }
+    case 3: {
+        double g = 100.0 + std::sin(phase + offset) * 80.0;
+        double b = 235.0 + std::cos(phase + offset) * 20.0;
+        return {255, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
+    }
+    case 4: return {255, static_cast<uint8_t>(70.0 + std::sin(phase + offset) * 50.0), static_cast<uint8_t>(60.0 + std::cos(phase + offset) * 50.0)};
+    case 5: {
+        double r = 160.0 + std::sin(phase + offset) * 60.0;
+        double g = 90.0 + std::cos(phase + offset) * 50.0;
+        return {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255};
+    }
+    case 6: {
+        double r = 120.0 + std::cos(phase + offset) * 40.0;
+        double g = 225.0 + std::sin(phase + offset) * 30.0;
+        return {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 255};
+    }
+    case 7: {
+        double g = 175.0 + std::sin(phase + offset) * 60.0;
+        double b = 50.0 + std::cos(phase + offset) * 40.0;
+        return {255, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
+    }
+    case 9: return {0, static_cast<uint8_t>(207.0 + std::sin(phase + offset) * 47.0), static_cast<uint8_t>(227.0 + std::cos(phase + offset) * 27.0)};
+    default: return {255, 255, 255};
     }
 }
 
@@ -3658,16 +3727,16 @@ Color GameEngine::pacManColor(double offset) const {
         return themePrimary(Config::PACTERM_PLUS_THEME, offset);
     }
     switch (selected_pacman_color_) {
-        case 0:  return {255, 255, 0};
-        case 1:  return {0, 255, 255};
-        case 2:  return {0, 255, 0};
-        case 3:  return {255, 100, 255};
-        case 4:  return {255, 50, 50};
-        case 5:  return {185, 100, 255};
-        case 6:  return {140, 230, 255};
-        case 7:  return {255, 190, 70};
-        case 8:  return getRainbowColor(0.0);
-        default: return themePrimary(9, offset);
+    case 0: return {255, 255, 0};
+    case 1: return {0, 255, 255};
+    case 2: return {0, 255, 0};
+    case 3: return {255, 100, 255};
+    case 4: return {255, 50, 50};
+    case 5: return {185, 100, 255};
+    case 6: return {140, 230, 255};
+    case 7: return {255, 190, 70};
+    case 8: return getRainbowColor(0.0);
+    default: return themePrimary(9, offset);
     }
 }
 
@@ -3678,65 +3747,76 @@ Color GameEngine::tileAccentColor(int x, int y) const {
     }
     // The PacTerm+ general theme only styles the menus and HUD; dots and power
     // pellets keep their per-level palette so gameplay stays readable and fair.
-    if (level_ >= 1 && level_ <= 4)      return {255, 183, 174};
-    if (level_ >= 5 && level_ <= 8)      return {174, 255, 183};
-    if (level_ >= 9 && level_ <= 12)     return {255, 174, 255};
-    if (level_ >= 13 && level_ <= 16)    return {255, 183, 100};
-    if (level_ >= 21 && level_ <= 23)    return {215, 180, 255};
-    if (level_ >= 24 && level_ <= 26)    return {170, 235, 255};
-    if (level_ >= 27 && level_ <= 29)    return {255, 200, 110};
+    if (level_ >= 1 && level_ <= 4)
+        return {255, 183, 174};
+    if (level_ >= 5 && level_ <= 8)
+        return {174, 255, 183};
+    if (level_ >= 9 && level_ <= 12)
+        return {255, 174, 255};
+    if (level_ >= 13 && level_ <= 16)
+        return {255, 183, 100};
+    if (level_ >= 21 && level_ <= 23)
+        return {215, 180, 255};
+    if (level_ >= 24 && level_ <= 26)
+        return {170, 235, 255};
+    if (level_ >= 27 && level_ <= 29)
+        return {255, 200, 110};
     return {255, 255, 150};
 }
 
 GameEngine::BrightnessTier GameEngine::getBrightnessTier(Color fg) const {
     // Perceived brightness approximated by the max component (cheap, no sqrt).
     const uint8_t mx = fg.r > fg.g ? (fg.r > fg.b ? fg.r : fg.b) : (fg.g > fg.b ? fg.g : fg.b);
-    if (mx > 220) return BrightnessTier::VeryBright;
-    if (mx > 170) return BrightnessTier::Bright;
-    if (mx > 120) return BrightnessTier::Normal;
-    if (mx > 60)  return BrightnessTier::Dim;
+    if (mx > 220)
+        return BrightnessTier::VeryBright;
+    if (mx > 170)
+        return BrightnessTier::Bright;
+    if (mx > 120)
+        return BrightnessTier::Normal;
+    if (mx > 60)
+        return BrightnessTier::Dim;
     return BrightnessTier::VeryDim;
 }
 
 Color GameEngine::applyGeneralThemeImpl(Color fg, double offset) const {
     // Nearly black (borders, spacing): keep as-is.
     const uint8_t mx = fg.r > fg.g ? (fg.r > fg.b ? fg.r : fg.b) : (fg.g > fg.b ? fg.g : fg.b);
-    if (mx <= 30) return fg;
+    if (mx <= 30)
+        return fg;
 
     if (selected_general_theme_ == Config::PACTERM_PLUS_THEME) {
         // Keep achromatic content neutral: white stays white, gray stays gray.
         // Only already-chromatic pixels get the animated Classic hue.
         const uint8_t mn = fg.r < fg.g ? (fg.r < fg.b ? fg.r : fg.b) : (fg.g < fg.b ? fg.g : fg.b);
-        if (static_cast<int>(mx) - static_cast<int>(mn) <= 30) return fg;
+        if (static_cast<int>(mx) - static_cast<int>(mn) <= 30)
+            return fg;
     }
 
     const BrightnessTier tier = getBrightnessTier(fg);
 
     const Color base = (selected_general_theme_ == 8)
-        ? getRainbowColor(offset)
-        : (menu_accent_
-            ? themeAccent(selected_general_theme_, offset)
-            : themePrimary(selected_general_theme_, offset));
+                           ? getRainbowColor(offset)
+                           : (menu_accent_ ? themeAccent(selected_general_theme_, offset) : themePrimary(selected_general_theme_, offset));
 
     // Split the animated theme color into a unit-intensity hue and its current
     // animated intensity, so we can re-drive it with the element's own brightness.
-    const float base_max = static_cast<float>(
-        base.r > base.g ? (base.r > base.b ? base.r : base.b) : (base.g > base.b ? base.g : base.b));
-    if (base_max <= 0.0f) return fg;
+    const float base_max = static_cast<float>(base.r > base.g ? (base.r > base.b ? base.r : base.b) : (base.g > base.b ? base.g : base.b));
+    if (base_max <= 0.0f)
+        return fg;
     const float inv = 1.0f / base_max;
-    const float hr = static_cast<float>(base.r) * inv;   // theme hue, unit intensity
-    const float hg = static_cast<float>(base.g) * inv;
-    const float hb = static_cast<float>(base.b) * inv;
+    const float hr  = static_cast<float>(base.r) * inv; // theme hue, unit intensity
+    const float hg  = static_cast<float>(base.g) * inv;
+    const float hb  = static_cast<float>(base.b) * inv;
 
     // Relative pulse of the theme right now (1.0 = peak). Dimmer tiers dampen
     // the swing so only prominent elements throb noticeably.
-    const float pulse_rel = base_max / 255.0f;
-    const float pulse_keep =
-        tier == BrightnessTier::VeryBright ? 1.0f :
-        tier == BrightnessTier::Bright     ? 0.7f :
-        tier == BrightnessTier::Normal     ? 0.5f :
-        tier == BrightnessTier::Dim        ? 0.3f : 0.2f;
-    const float damped = pulse_keep * pulse_rel + (1.0f - pulse_keep) * 1.0f;
+    const float pulse_rel  = base_max / 255.0f;
+    const float pulse_keep = tier == BrightnessTier::VeryBright ? 1.0f
+                             : tier == BrightnessTier::Bright   ? 0.7f
+                             : tier == BrightnessTier::Normal   ? 0.5f
+                             : tier == BrightnessTier::Dim      ? 0.3f
+                                                                : 0.2f;
+    const float damped     = pulse_keep * pulse_rel + (1.0f - pulse_keep) * 1.0f;
 
     // Mix the element's original color toward the pure theme hue driven at the
     // element's own brightness mx. The theme therefore supplies hue, not a flat
@@ -3745,87 +3825,118 @@ Color GameEngine::applyGeneralThemeImpl(Color fg, double offset) const {
     // visibly breathing). The mix weight varies smoothly with brightness so
     // hover-brightening (+50) never causes a visible tier snap.
     const float fmx = static_cast<float>(mx);
-    float mix = 0.55f + 0.3f * ((fmx - 30.0f) / 225.0f);   // 30->0.55, 255->0.85
-    if (tier == BrightnessTier::VeryBright) mix = 0.85f;   // full theme hue at the top
+    float mix       = 0.55f + 0.3f * ((fmx - 30.0f) / 225.0f); // 30->0.55, 255->0.85
+    if (tier == BrightnessTier::VeryBright)
+        mix = 0.85f; // full theme hue at the top
     const float cr = (1.0f - mix) * static_cast<float>(fg.r) + mix * hr * fmx;
     const float cg = (1.0f - mix) * static_cast<float>(fg.g) + mix * hg * fmx;
     const float cb = (1.0f - mix) * static_cast<float>(fg.b) + mix * hb * fmx;
 
-    return {
-        static_cast<uint8_t>(std::min(255.0f, cr * damped)),
-        static_cast<uint8_t>(std::min(255.0f, cg * damped)),
-        static_cast<uint8_t>(std::min(255.0f, cb * damped))
-    };
+    return {static_cast<uint8_t>(std::min(255.0f, cr * damped)), static_cast<uint8_t>(std::min(255.0f, cg * damped)),
+            static_cast<uint8_t>(std::min(255.0f, cb * damped))};
 }
 
 Color GameEngine::applyGeneralTheme(Color fg, int row, int col) const {
-    if (selected_general_theme_ == 0) return fg;
+    if (selected_general_theme_ == 0)
+        return fg;
     const double offset = row * 0.08 + col * 0.04;
     return applyGeneralThemeImpl(fg, offset);
 }
 
 Color GameEngine::applyGeneralThemeGradient(Color fg, int row, int col, bool is_gradient_start) const {
-    if (selected_general_theme_ == 0) return fg;
+    if (selected_general_theme_ == 0)
+        return fg;
     const double offset = row * 0.08 + col * 0.04 + (is_gradient_start ? 0.0 : 0.8);
     return applyGeneralThemeImpl(fg, offset);
 }
 
 bool GameEngine::isColorLocked(int color_idx) const {
-    if (color_idx == 0) return false;
-    if (color_idx == 1) return (max_unlocked_level_ <= 4);
-    if (color_idx == 2) return (max_unlocked_level_ <= 8);
-    if (color_idx == 3) return (max_unlocked_level_ <= 12);
-    if (color_idx == 4) return (max_unlocked_level_ <= 16);
-    if (color_idx == 5) return (max_unlocked_level_ <= 20);
-    if (color_idx == 6) return (max_unlocked_level_ <= 23);
-    if (color_idx == 7) return (max_unlocked_level_ <= 26);
-    if (color_idx == 8) return !unlocked_rainbow_;
-    if (color_idx == 9) return !pacterm_plus_unlocked_;
+    if (color_idx == 0)
+        return false;
+    if (color_idx == 1)
+        return (max_unlocked_level_ <= 4);
+    if (color_idx == 2)
+        return (max_unlocked_level_ <= 8);
+    if (color_idx == 3)
+        return (max_unlocked_level_ <= 12);
+    if (color_idx == 4)
+        return (max_unlocked_level_ <= 16);
+    if (color_idx == 5)
+        return (max_unlocked_level_ <= 20);
+    if (color_idx == 6)
+        return (max_unlocked_level_ <= 23);
+    if (color_idx == 7)
+        return (max_unlocked_level_ <= 26);
+    if (color_idx == 8)
+        return !unlocked_rainbow_;
+    if (color_idx == 9)
+        return !pacterm_plus_unlocked_;
     return false;
 }
 
 bool GameEngine::isGlitchZone(int x, int y) const {
     (void)y;
-    if (level_ == 30) return true;
-    if (level_ == 20) return x >= 14;
+    if (level_ == 30)
+        return true;
+    if (level_ == 20)
+        return x >= 14;
     return false;
 }
 
 LevelTheme GameEngine::themeForLevel(int lvl) const {
-    if (lvl >= 1 && lvl <= 4)   return LevelTheme::Classic;
-    if (lvl >= 5 && lvl <= 8)   return LevelTheme::Cyan;
-    if (lvl >= 9 && lvl <= 12)  return LevelTheme::Green;
-    if (lvl >= 13 && lvl <= 16) return LevelTheme::Pink;
-    if (lvl >= 17 && lvl <= 19) return LevelTheme::Red;
-    if (lvl == 20 || lvl == 30) return LevelTheme::Glitch;
-    if (lvl >= 21 && lvl <= 23) return LevelTheme::Violet;
-    if (lvl >= 24 && lvl <= 26) return LevelTheme::Ice;
-    if (lvl >= 27 && lvl <= 29) return LevelTheme::Amber;
+    if (lvl >= 1 && lvl <= 4)
+        return LevelTheme::Classic;
+    if (lvl >= 5 && lvl <= 8)
+        return LevelTheme::Cyan;
+    if (lvl >= 9 && lvl <= 12)
+        return LevelTheme::Green;
+    if (lvl >= 13 && lvl <= 16)
+        return LevelTheme::Pink;
+    if (lvl >= 17 && lvl <= 19)
+        return LevelTheme::Red;
+    if (lvl == 20 || lvl == 30)
+        return LevelTheme::Glitch;
+    if (lvl >= 21 && lvl <= 23)
+        return LevelTheme::Violet;
+    if (lvl >= 24 && lvl <= 26)
+        return LevelTheme::Ice;
+    if (lvl >= 27 && lvl <= 29)
+        return LevelTheme::Amber;
     return LevelTheme::Classic;
 }
 
 Color GameEngine::levelThemeColor(int lvl) const {
-    if (lvl >= 1 && lvl <= 4)   return {0, 255, 255};
-    if (lvl >= 5 && lvl <= 8)   return {0, 255, 0};
-    if (lvl >= 9 && lvl <= 12)  return {255, 100, 255};
-    if (lvl >= 13 && lvl <= 16) return {255, 100, 0};
-    if (lvl >= 17 && lvl <= 19) return {255, 255, 0};
-    if (lvl == 20 || lvl == 30) return {255, 50, 50};
-    if (lvl >= 21 && lvl <= 23) return {200, 100, 255};
-    if (lvl >= 24 && lvl <= 26) return {120, 220, 255};
-    if (lvl >= 27 && lvl <= 29) return {255, 180, 60};
+    if (lvl >= 1 && lvl <= 4)
+        return {0, 255, 255};
+    if (lvl >= 5 && lvl <= 8)
+        return {0, 255, 0};
+    if (lvl >= 9 && lvl <= 12)
+        return {255, 100, 255};
+    if (lvl >= 13 && lvl <= 16)
+        return {255, 100, 0};
+    if (lvl >= 17 && lvl <= 19)
+        return {255, 255, 0};
+    if (lvl == 20 || lvl == 30)
+        return {255, 50, 50};
+    if (lvl >= 21 && lvl <= 23)
+        return {200, 100, 255};
+    if (lvl >= 24 && lvl <= 26)
+        return {120, 220, 255};
+    if (lvl >= 27 && lvl <= 29)
+        return {255, 180, 60};
     return {255, 255, 255};
 }
 
 bool GameEngine::hasPowerup(PowerupKind kind) const {
     for (const auto& p : current_powerups_) {
-        if (p.kind == kind) return true;
+        if (p.kind == kind)
+            return true;
     }
     return false;
 }
 
 void GameEngine::loadThemePowerups() {
-    current_theme_ = themeForLevel(level_);
+    current_theme_    = themeForLevel(level_);
     current_powerups_ = {};
     for (const auto& tp : THEME_POWERUPS) {
         if (tp.theme == current_theme_) {
@@ -3834,10 +3945,10 @@ void GameEngine::loadThemePowerups() {
         }
     }
     lava_resist_cooldown_ms_ = 0;
-    lava_resist_active_ = false;
-    lava_resist_window_ms_ = 0;
-    warp_stun_timer_ms_ = 0;
-    glitch_warp_timer_ms_ = 8000;
+    lava_resist_active_      = false;
+    lava_resist_window_ms_   = 0;
+    warp_stun_timer_ms_      = 0;
+    glitch_warp_timer_ms_    = 8000;
 }
 
 std::vector<Vec2> GameEngine::reachableTiles() const {
@@ -3854,15 +3965,12 @@ std::vector<Vec2> GameEngine::reachableTiles() const {
         if (!inside_ghost_house && map_.isWalkable(curr)) {
             out.push_back(curr);
         }
-        std::array<Vec2, 4> neighbors = {{
-            {curr.x + 1, curr.y},
-            {curr.x - 1, curr.y},
-            {curr.x, curr.y + 1},
-            {curr.x, curr.y - 1}
-        }};
+        std::array<Vec2, 4> neighbors = {{{curr.x + 1, curr.y}, {curr.x - 1, curr.y}, {curr.x, curr.y + 1}, {curr.x, curr.y - 1}}};
         for (auto next : neighbors) {
-            if (next.x < 0) next.x = Config::MAP_WIDTH - 1;
-            if (next.x >= Config::MAP_WIDTH) next.x = 0;
+            if (next.x < 0)
+                next.x = Config::MAP_WIDTH - 1;
+            if (next.x >= Config::MAP_WIDTH)
+                next.x = 0;
             if (next.y >= 0 && next.y < Config::MAP_HEIGHT && !visited[next.y][next.x]) {
                 TileType t = map_.getTile(next.x, next.y);
                 if (t != TileType::Wall && t != TileType::GhostDoor) {
@@ -3880,30 +3988,30 @@ void GameEngine::startLevel(int lvl) {
     map_.loadLevel(lvl);
     loadThemePowerups();
 
-    special_item_active_ = false;
+    special_item_active_   = false;
     cherry_spawn_timer_ms_ = 15000 + rng_() % 15000;
-    apple_spawn_timer_ms_ = 30000 + rng_() % 30000;
-    heart_spawn_timer_ms_ = 25000 + rng_() % 35000;
+    apple_spawn_timer_ms_  = 30000 + rng_() % 30000;
+    heart_spawn_timer_ms_  = 25000 + rng_() % 35000;
 
     popups_.clear();
     particles_.clear();
     speed_boost_timer_ms_ = 0;
-    ice_freeze_timer_ms_ = 0;
+    ice_freeze_timer_ms_  = 0;
 
-    letter_hunt_.active = false;
-    ghost_freeze_timer_ms_ = 0;
-    pac_speed_timer_ms_ = 0;
+    letter_hunt_.active         = false;
+    ghost_freeze_timer_ms_      = 0;
+    pac_speed_timer_ms_         = 0;
     letter_score_mult_timer_ms_ = 0;
-    fever_timer_ms_ = 0;
-    fever_active_ = false;
-    level_deaths_ = 0;
+    fever_timer_ms_             = 0;
+    fever_active_               = false;
+    level_deaths_               = 0;
     spawnLetter();
     acid_trails_.clear();
     lava_tiles_.clear();
-    dash_cooldown_ = 0;
+    dash_cooldown_        = 0;
     ghost_blitz_timer_ms_ = 0;
     ghost_blitz_cooldown_ = 0;
-    ice_freeze_cooldown_ = 0;
+    ice_freeze_cooldown_  = 0;
 
     portal_A1_ = {0, 0};
     portal_A2_ = {0, 0};
@@ -3912,27 +4020,43 @@ void GameEngine::startLevel(int lvl) {
     if (level_ >= 9 && level_ <= 12) {
         for (int y = 2; y < Config::MAP_HEIGHT / 2; ++y) {
             for (int x = 2; x < Config::MAP_WIDTH / 2; ++x) {
-                if (map_.getTile(x, y) == TileType::Empty) { portal_A1_ = {x, y}; break; }
+                if (map_.getTile(x, y) == TileType::Empty) {
+                    portal_A1_ = {x, y};
+                    break;
+                }
             }
-            if (portal_A1_.x != 0) break;
+            if (portal_A1_.x != 0)
+                break;
         }
         for (int y = Config::MAP_HEIGHT - 3; y >= Config::MAP_HEIGHT / 2; --y) {
             for (int x = Config::MAP_WIDTH - 3; x >= Config::MAP_WIDTH / 2; --x) {
-                if (map_.getTile(x, y) == TileType::Empty) { portal_A2_ = {x, y}; break; }
+                if (map_.getTile(x, y) == TileType::Empty) {
+                    portal_A2_ = {x, y};
+                    break;
+                }
             }
-            if (portal_A2_.x != 0) break;
+            if (portal_A2_.x != 0)
+                break;
         }
         for (int y = 2; y < Config::MAP_HEIGHT / 2; ++y) {
             for (int x = Config::MAP_WIDTH - 3; x >= Config::MAP_WIDTH / 2; --x) {
-                if (map_.getTile(x, y) == TileType::Empty) { portal_B1_ = {x, y}; break; }
+                if (map_.getTile(x, y) == TileType::Empty) {
+                    portal_B1_ = {x, y};
+                    break;
+                }
             }
-            if (portal_B1_.x != 0) break;
+            if (portal_B1_.x != 0)
+                break;
         }
         for (int y = Config::MAP_HEIGHT - 3; y >= Config::MAP_HEIGHT / 2; --y) {
             for (int x = 2; x < Config::MAP_WIDTH / 2; ++x) {
-                if (map_.getTile(x, y) == TileType::Empty) { portal_B2_ = {x, y}; break; }
+                if (map_.getTile(x, y) == TileType::Empty) {
+                    portal_B2_ = {x, y};
+                    break;
+                }
             }
-            if (portal_B2_.x != 0) break;
+            if (portal_B2_.x != 0)
+                break;
         }
     }
 }
@@ -3955,16 +4079,13 @@ void GameEngine::spawnSpecialItem(TileType type) {
             reachable_positions.push_back(curr);
         }
 
-        std::array<Vec2, 4> neighbors = {{
-            {curr.x + 1, curr.y},
-            {curr.x - 1, curr.y},
-            {curr.x, curr.y + 1},
-            {curr.x, curr.y - 1}
-        }};
+        std::array<Vec2, 4> neighbors = {{{curr.x + 1, curr.y}, {curr.x - 1, curr.y}, {curr.x, curr.y + 1}, {curr.x, curr.y - 1}}};
 
         for (auto next : neighbors) {
-            if (next.x < 0) next.x = Config::MAP_WIDTH - 1;
-            if (next.x >= Config::MAP_WIDTH) next.x = 0;
+            if (next.x < 0)
+                next.x = Config::MAP_WIDTH - 1;
+            if (next.x >= Config::MAP_WIDTH)
+                next.x = 0;
 
             if (next.y >= 0 && next.y < Config::MAP_HEIGHT) {
                 if (!visited[next.y][next.x]) {
@@ -3978,16 +4099,17 @@ void GameEngine::spawnSpecialItem(TileType type) {
         }
     }
 
-    if (reachable_positions.empty()) return;
+    if (reachable_positions.empty())
+        return;
 
-    int idx = rng_() % reachable_positions.size();
+    int idx  = rng_() % reachable_positions.size();
     Vec2 pos = reachable_positions[idx];
 
     map_.setTile(pos, type);
 
-    special_item_active_ = true;
-    special_item_pos_ = pos;
-    special_item_type_ = type;
+    special_item_active_   = true;
+    special_item_pos_      = pos;
+    special_item_type_     = type;
     special_item_timer_ms_ = 10000;
 }
 
@@ -4007,13 +4129,13 @@ void GameEngine::spawnLetter() {
             break;
         }
     }
-    if (target < 0) return;
+    if (target < 0)
+        return;
 
     TileType type = static_cast<TileType>(static_cast<int>(TileType::LetterP) + target);
 
     std::vector<Vec2> reachable;
-    std::vector<std::vector<bool>> visited(Config::MAP_HEIGHT,
-                                           std::vector<bool>(Config::MAP_WIDTH, false));
+    std::vector<std::vector<bool>> visited(Config::MAP_HEIGHT, std::vector<bool>(Config::MAP_WIDTH, false));
     std::queue<Vec2> q;
     Vec2 start_pos = {13, 23};
     q.push(start_pos);
@@ -4024,18 +4146,17 @@ void GameEngine::spawnLetter() {
         q.pop();
 
         bool inside_ghost_house = (curr.y >= 12 && curr.y <= 16 && curr.x >= 10 && curr.x <= 17);
-        TileType ct = map_.getTile(curr);
+        TileType ct             = map_.getTile(curr);
         if (!inside_ghost_house && (ct == TileType::Empty || ct == TileType::Dot)) {
             reachable.push_back(curr);
         }
 
-        std::array<Vec2, 4> neighbors = {{
-            {curr.x + 1, curr.y}, {curr.x - 1, curr.y},
-            {curr.x, curr.y + 1}, {curr.x, curr.y - 1}
-        }};
+        std::array<Vec2, 4> neighbors = {{{curr.x + 1, curr.y}, {curr.x - 1, curr.y}, {curr.x, curr.y + 1}, {curr.x, curr.y - 1}}};
         for (auto next : neighbors) {
-            if (next.x < 0) next.x = Config::MAP_WIDTH - 1;
-            if (next.x >= Config::MAP_WIDTH) next.x = 0;
+            if (next.x < 0)
+                next.x = Config::MAP_WIDTH - 1;
+            if (next.x >= Config::MAP_WIDTH)
+                next.x = 0;
             if (next.y >= 0 && next.y < Config::MAP_HEIGHT && !visited[next.y][next.x]) {
                 TileType nt = map_.getTile(next.x, next.y);
                 if (nt != TileType::Wall && nt != TileType::GhostDoor) {
@@ -4046,7 +4167,8 @@ void GameEngine::spawnLetter() {
         }
     }
 
-    if (reachable.empty()) return;
+    if (reachable.empty())
+        return;
 
     std::shuffle(reachable.begin(), reachable.end(), rng_);
     Vec2 pos = reachable.front();
@@ -4055,9 +4177,9 @@ void GameEngine::spawnLetter() {
     }
     map_.setTile(pos, type);
 
-    letter_hunt_.active = true;
-    letter_hunt_.pos = pos;
-    letter_hunt_.type = type;
+    letter_hunt_.active   = true;
+    letter_hunt_.pos      = pos;
+    letter_hunt_.type     = type;
     letter_hunt_.timer_ms = LetterHuntState::ACTIVE_MS;
 }
 
@@ -4069,17 +4191,18 @@ void GameEngine::collectLetter(int letter_idx, Vec2 pos) {
     if (!letter_hunt_.isCollected(letter_idx)) {
         letter_hunt_.collect(letter_idx);
         if (letter_hunt_.allCollected() && !pacterm_plus_unlocked_) {
-            pacterm_plus_unlocked_ = true;
-            main_menu_message_ = "PACTERM+ THEME UNLOCKED!";
+            pacterm_plus_unlocked_  = true;
+            main_menu_message_      = "PACTERM+ THEME UNLOCKED!";
             main_menu_msg_timer_ms_ = 4000;
         }
     }
 
-    ghost_freeze_timer_ms_ = Config::LETTER_GHOST_FREEZE_MS;
-    pac_speed_timer_ms_ = Config::LETTER_SPEED_BOOST_MS;
+    ghost_freeze_timer_ms_      = Config::LETTER_GHOST_FREEZE_MS;
+    pac_speed_timer_ms_         = Config::LETTER_SPEED_BOOST_MS;
     letter_score_mult_timer_ms_ = Config::LETTER_SCORE_MULT_MS;
 
-    if (score_ > high_score_) high_score_ = score_;
+    if (score_ > high_score_)
+        high_score_ = score_;
     saveHighScore();
     spawnScorePopup(pos, Config::LETTER_SCORE, {255, 215, 0});
     spawnParticleBurst(pos, {255, 215, 0});
@@ -4088,18 +4211,20 @@ void GameEngine::collectLetter(int letter_idx, Vec2 pos) {
 
 double GameEngine::getActiveScoreMultiplier() const {
     double mult = 1.0;
-    if (letter_score_mult_timer_ms_ > 0) mult *= Config::LETTER_SCORE_MULTIPLIER;
-    if (fever_active_ && fever_timer_ms_ > 0) mult *= FeverState::MULTIPLIER;
+    if (letter_score_mult_timer_ms_ > 0)
+        mult *= Config::LETTER_SCORE_MULTIPLIER;
+    if (fever_active_ && fever_timer_ms_ > 0)
+        mult *= FeverState::MULTIPLIER;
     return mult;
 }
 
 void GameEngine::triggerFever() {
-    fever_active_ = true;
+    fever_active_   = true;
     fever_timer_ms_ = FeverState::DURATION_MS;
     FloatingPopup popup;
-    popup.pos = pacman_.position;
-    popup.text = "FEVER x2!";
-    popup.fg = {255, 0, 255};
+    popup.pos         = pacman_.position;
+    popup.text        = "FEVER x2!";
+    popup.fg          = {255, 0, 255};
     popup.lifetime_ms = 900;
     popups_.push_back(popup);
     playSound("sounds/eat_ghost.wav");
@@ -4108,22 +4233,21 @@ void GameEngine::triggerFever() {
 void GameEngine::spawnGhostTrail(Vec2 pos) {
     for (int i = 0; i < 2; ++i) {
         Particle p;
-        p.x = pos.x + 0.5;
-        p.y = pos.y + 0.5;
-        p.vx = 0.0;
-        p.vy = 0.0;
-        p.color = themeAccent(Config::PACTERM_PLUS_THEME, static_cast<double>(i) * 0.9);
+        p.x           = pos.x + 0.5;
+        p.y           = pos.y + 0.5;
+        p.vx          = 0.0;
+        p.vy          = 0.0;
+        p.color       = themeAccent(Config::PACTERM_PLUS_THEME, static_cast<double>(i) * 0.9);
         p.lifetime_ms = 140 + i * 90;
-        p.glyph = use_nerd_fonts_ ? "✨" : "::";
+        p.glyph       = use_nerd_fonts_ ? "✨" : "::";
         particles_.push_back(p);
     }
 }
 
 int GameEngine::computeLevelRating(double elapsed_s, double par_s, double& penalty_out) const {
-    double penalty = level_deaths_ * Config::RATING_DEATH_PENALTY +
-                     std::max(0.0, (elapsed_s - par_s) / 10.0 * Config::RATING_TIME_PENALTY_PER_10S);
-    penalty_out = penalty;
-    double rating = std::clamp(std::round(10.0 - penalty), 0.0, 10.0);
+    double penalty = level_deaths_ * Config::RATING_DEATH_PENALTY + std::max(0.0, (elapsed_s - par_s) / 10.0 * Config::RATING_TIME_PENALTY_PER_10S);
+    penalty_out    = penalty;
+    double rating  = std::clamp(std::round(10.0 - penalty), 0.0, 10.0);
     return static_cast<int>(rating);
 }
 
@@ -4164,13 +4288,20 @@ void GameEngine::rebuildKeybindings() {
 }
 
 std::string GameEngine::getKeyName(int k) {
-    if (k == ' ') return "SPACE";
-    if (k == '\n' || k == '\r') return "ENTER";
-    if (k == 27) return "ESC";
-    if (k == 1000) return "ARROW_UP";
-    if (k == 1001) return "ARROW_DOWN";
-    if (k == 1002) return "ARROW_RIGHT";
-    if (k == 1003) return "ARROW_LEFT";
+    if (k == ' ')
+        return "SPACE";
+    if (k == '\n' || k == '\r')
+        return "ENTER";
+    if (k == 27)
+        return "ESC";
+    if (k == 1000)
+        return "ARROW_UP";
+    if (k == 1001)
+        return "ARROW_DOWN";
+    if (k == 1002)
+        return "ARROW_RIGHT";
+    if (k == 1003)
+        return "ARROW_LEFT";
     if (k >= 32 && k <= 126) {
         std::string s = "";
         s += (char)std::toupper(k);
@@ -4185,18 +4316,29 @@ void GameEngine::renderScreensaver() {
     int center_col = render_width_ / 2;
 
     if (use_nerd_fonts_) {
-        drawString(center_row - 10, center_col - 31, "  ██████╗  █████╗  ██████╗████████╗███████╗██████╗ ███╗   ███╗", themePrimary(selected_general_theme_, 0.0 * 0.3));
-        drawString(center_row - 9, center_col - 31, "  ██╔══██╗██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║", themePrimary(selected_general_theme_, 1.0 * 0.3));
-        drawString(center_row - 8, center_col - 31, "  ██████╔╝███████║██║        ██║   █████╗  ██████╔╝██╔████╔██║", themePrimary(selected_general_theme_, 2.0 * 0.3));
-        drawString(center_row - 7, center_col - 31, "  ██╔═══╝ ██╔══██║██║        ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║", themePrimary(selected_general_theme_, 3.0 * 0.3));
-        drawString(center_row - 6, center_col - 31, "  ██║     ██║  ██║╚██████╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║", themePrimary(selected_general_theme_, 4.0 * 0.3));
-        drawString(center_row - 5, center_col - 31, "  ╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝", themePrimary(selected_general_theme_, 5.0 * 0.3));
+        drawString(center_row - 10, center_col - 31, "  ██████╗  █████╗  ██████╗████████╗███████╗██████╗ ███╗   ███╗",
+                   themePrimary(selected_general_theme_, 0.0 * 0.3));
+        drawString(center_row - 9, center_col - 31, "  ██╔══██╗██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║",
+                   themePrimary(selected_general_theme_, 1.0 * 0.3));
+        drawString(center_row - 8, center_col - 31, "  ██████╔╝███████║██║        ██║   █████╗  ██████╔╝██╔████╔██║",
+                   themePrimary(selected_general_theme_, 2.0 * 0.3));
+        drawString(center_row - 7, center_col - 31, "  ██╔═══╝ ██╔══██║██║        ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║",
+                   themePrimary(selected_general_theme_, 3.0 * 0.3));
+        drawString(center_row - 6, center_col - 31, "  ██║     ██║  ██║╚██████╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║",
+                   themePrimary(selected_general_theme_, 4.0 * 0.3));
+        drawString(center_row - 5, center_col - 31, "  ╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝",
+                   themePrimary(selected_general_theme_, 5.0 * 0.3));
     } else {
-        drawString(center_row - 10, center_col - 27, "  #####    ###    ###   #####  #####  ####   #   #   #  ", themePrimary(selected_general_theme_, 0.0 * 0.3));
-        drawString(center_row - 9, center_col - 27, "  #    #  #   #  #   #    #    #      #   #  ## ##   #  ", themePrimary(selected_general_theme_, 1.0 * 0.3));
-        drawString(center_row - 8, center_col - 27, "  #####   #####  #        #    ####   ####   # # #   #  ", themePrimary(selected_general_theme_, 2.0 * 0.3));
-        drawString(center_row - 7, center_col - 27, "  #       #   #  #   #    #    #      # #    #   #   #  ", themePrimary(selected_general_theme_, 3.0 * 0.3));
-        drawString(center_row - 6, center_col - 27, "  #       #   #   ###     #    #####  #  ##  #   #   #  ", themePrimary(selected_general_theme_, 4.0 * 0.3));
+        drawString(center_row - 10, center_col - 27, "  #####    ###    ###   #####  #####  ####   #   #   #  ",
+                   themePrimary(selected_general_theme_, 0.0 * 0.3));
+        drawString(center_row - 9, center_col - 27, "  #    #  #   #  #   #    #    #      #   #  ## ##   #  ",
+                   themePrimary(selected_general_theme_, 1.0 * 0.3));
+        drawString(center_row - 8, center_col - 27, "  #####   #####  #        #    ####   ####   # # #   #  ",
+                   themePrimary(selected_general_theme_, 2.0 * 0.3));
+        drawString(center_row - 7, center_col - 27, "  #       #   #  #   #    #    #      # #    #   #   #  ",
+                   themePrimary(selected_general_theme_, 3.0 * 0.3));
+        drawString(center_row - 6, center_col - 27, "  #       #   #   ###     #    #####  #  ##  #   #   #  ",
+                   themePrimary(selected_general_theme_, 4.0 * 0.3));
     }
 
     std::string sub = "S C R E E N S A V E R";
@@ -4206,15 +4348,17 @@ void GameEngine::renderScreensaver() {
     for (int col = 4; col < render_width_ - 4; ++col) {
         bool eaten = false;
         if (screensaver_dir_ == 1) {
-            if (col <= screensaver_x_) eaten = true;
+            if (col <= screensaver_x_)
+                eaten = true;
         } else {
-            if (col >= screensaver_x_) eaten = true;
+            if (col >= screensaver_x_)
+                eaten = true;
         }
         if (!eaten && (col % 4 == 0)) {
             Cell dot_cell;
             dot_cell.glyph = use_nerd_fonts_ ? "·" : ".";
-            dot_cell.fg = themeAccent(selected_general_theme_, col * 0.04);
-            dot_cell.bg = {0, 0, 0};
+            dot_cell.fg    = themeAccent(selected_general_theme_, col * 0.04);
+            dot_cell.bg    = {0, 0, 0};
             setCell(anim_row, col, dot_cell);
         }
     }
@@ -4242,27 +4386,17 @@ void GameEngine::renderScreensaver() {
 
     std::array<ScreensaverGhost, 4> s_ghosts;
     if (screensaver_dir_ == 1) {
-        s_ghosts = {{
-            {-6,  {255, 0, 0},      false},
-            {-10, {255, 184, 255},  false},
-            {-14, {0, 255, 255},    false},
-            {-18, {255, 184, 82},   false}
-        }};
+        s_ghosts = {{{-6, {255, 0, 0}, false}, {-10, {255, 184, 255}, false}, {-14, {0, 255, 255}, false}, {-18, {255, 184, 82}, false}}};
     } else {
-        s_ghosts = {{
-            {-6,  {33, 33, 255},    true},
-            {-10, {33, 33, 255},    true},
-            {-14, {33, 33, 255},    true},
-            {-18, {33, 33, 255},    true}
-        }};
+        s_ghosts = {{{-6, {33, 33, 255}, true}, {-10, {33, 33, 255}, true}, {-14, {33, 33, 255}, true}, {-18, {33, 33, 255}, true}}};
     }
 
     for (const auto& sg : s_ghosts) {
         int gx = pm_x + sg.offset;
         if (gx >= 4 && gx < render_width_ - 4) {
             Cell g_cell;
-            g_cell.bg = {0, 0, 0};
-            g_cell.fg = sg.color;
+            g_cell.bg    = {0, 0, 0};
+            g_cell.fg    = sg.color;
             g_cell.glyph = use_nerd_fonts_ ? "ᗣ" : "M";
             if (sg.frightened) {
                 if ((gx % 8) < 2) {
@@ -4273,7 +4407,7 @@ void GameEngine::renderScreensaver() {
         }
     }
 
-    std::string prompt = "Press any key to return to the game";
+    std::string prompt       = "Press any key to return to the game";
     static int blink_counter = 0;
     blink_counter++;
     Color prompt_color = (blink_counter % 20 < 10) ? Color{150, 150, 150} : Color{80, 80, 80};
@@ -4287,8 +4421,7 @@ void GameEngine::renderEffects(const Viewport* vpp) {
         int x = static_cast<int>(p.x);
         int y = static_cast<int>(p.y);
 
-        if (x >= vp.start_x && x < vp.start_x + vp.visible_cols &&
-            y >= vp.start_y && y < vp.start_y + vp.visible_rows) {
+        if (x >= vp.start_x && x < vp.start_x + vp.visible_cols && y >= vp.start_y && y < vp.start_y + vp.visible_rows) {
 
             int screen_row = vp.base_row + (y - vp.start_y);
             int screen_col = vp.base_col + (x - vp.start_x) * Config::TILE_RENDER_W;
@@ -4317,12 +4450,12 @@ void GameEngine::renderEffects(const Viewport* vpp) {
         int x = popup.pos.x;
         int y = popup.pos.y;
 
-        if (x >= vp.start_x && x < vp.start_x + vp.visible_cols &&
-            y >= vp.start_y && y < vp.start_y + vp.visible_rows) {
+        if (x >= vp.start_x && x < vp.start_x + vp.visible_cols && y >= vp.start_y && y < vp.start_y + vp.visible_rows) {
 
             int screen_row = vp.base_row + (y - vp.start_y);
             int screen_col = vp.base_col + (x - vp.start_x) * Config::TILE_RENDER_W - static_cast<int>(popup.text.length() / 2);
-            if (screen_col < 0) screen_col = 0;
+            if (screen_col < 0)
+                screen_col = 0;
 
             drawString(screen_row, screen_col, popup.text, popup.fg);
         }
@@ -4331,9 +4464,9 @@ void GameEngine::renderEffects(const Viewport* vpp) {
 
 void GameEngine::spawnScorePopup(Vec2 pos, int points, Color fg) {
     FloatingPopup popup;
-    popup.pos = pos;
-    popup.text = "+" + std::to_string(points);
-    popup.fg = fg;
+    popup.pos         = pos;
+    popup.text        = "+" + std::to_string(points);
+    popup.fg          = fg;
     popup.lifetime_ms = 600;
     popups_.push_back(popup);
 }
@@ -4348,11 +4481,11 @@ void GameEngine::spawnParticleBurst(Vec2 pos, Color color) {
         double speed = dist_speed(rng_);
 
         Particle p;
-        p.x = pos.x + 0.5;
-        p.y = pos.y + 0.5;
-        p.vx = std::cos(angle) * speed * 2.0;
-        p.vy = std::sin(angle) * speed;
-        p.color = color;
+        p.x           = pos.x + 0.5;
+        p.y           = pos.y + 0.5;
+        p.vx          = std::cos(angle) * speed * 2.0;
+        p.vy          = std::sin(angle) * speed;
+        p.color       = color;
         p.lifetime_ms = 300 + (static_cast<int>(rng_()) % 150);
         particles_.push_back(p);
     }
@@ -4376,7 +4509,7 @@ void GameEngine::renderLevelSelector() {
             int row = center_row - 8 + r * 2;
             int col = center_col - 22 + c * 11;
 
-            bool locked = (lvl > max_unlocked_level_);
+            bool locked   = (lvl > max_unlocked_level_);
             bool selected = (level_select_cursor_ == lvl - 1);
 
             Color theme_color = levelThemeColor(lvl);
@@ -4424,24 +4557,24 @@ void GameEngine::renderLevelSelector() {
     int row_back = center_row + 4;
     std::string back_text;
     Color back_color = {150, 150, 150};
-    bool back_bold = false;
+    bool back_bold   = false;
     if (level_select_cursor_ == 30) {
         back_text = "> [ BACK TO MENU ] <";
         if (click_feedback_timer_ms_ > 0) {
             back_color = {255, 255, 255};
-            back_bold = true;
+            back_bold  = true;
         } else {
             back_color = {255, 255, 0};
         }
     } else {
-        back_text = "  [ BACK TO MENU ]  ";
+        back_text  = "  [ BACK TO MENU ]  ";
         back_color = {150, 150, 150};
     }
     if (isMouseHovering(row_back, center_col - static_cast<int>(back_text.length()) / 2, back_text)) {
         back_color.r = static_cast<uint8_t>(std::min(255, static_cast<int>(back_color.r) + 50));
         back_color.g = static_cast<uint8_t>(std::min(255, static_cast<int>(back_color.g) + 50));
         back_color.b = static_cast<uint8_t>(std::min(255, static_cast<int>(back_color.b) + 50));
-        back_bold = true;
+        back_bold    = true;
     }
     drawString(row_back, center_col - back_text.length() / 2, back_text, back_color, {0, 0, 0}, back_bold);
 }
@@ -4454,20 +4587,16 @@ void GameEngine::renderKeyConfig() {
 
     drawTitleBorderBox(center_row - 6, center_col - 20, 40, 11, " KEY CONFIGURATION ", {0, 255, 255}, {0, 0, 0});
 
-    std::string up_name = is_binding_ ? (binding_action_ == GameAction::Up ? "PRESS KEY..." : getKeyName(custom_key_up_)) : getKeyName(custom_key_up_);
+    std::string up_name   = is_binding_ ? (binding_action_ == GameAction::Up ? "PRESS KEY..." : getKeyName(custom_key_up_)) : getKeyName(custom_key_up_);
     std::string down_name = is_binding_ ? (binding_action_ == GameAction::Down ? "PRESS KEY..." : getKeyName(custom_key_down_)) : getKeyName(custom_key_down_);
     std::string left_name = is_binding_ ? (binding_action_ == GameAction::Left ? "PRESS KEY..." : getKeyName(custom_key_left_)) : getKeyName(custom_key_left_);
-    std::string right_name = is_binding_ ? (binding_action_ == GameAction::Right ? "PRESS KEY..." : getKeyName(custom_key_right_)) : getKeyName(custom_key_right_);
-    std::string pause_name = is_binding_ ? (binding_action_ == GameAction::Pause ? "PRESS KEY..." : getKeyName(custom_key_pause_)) : getKeyName(custom_key_pause_);
+    std::string right_name =
+        is_binding_ ? (binding_action_ == GameAction::Right ? "PRESS KEY..." : getKeyName(custom_key_right_)) : getKeyName(custom_key_right_);
+    std::string pause_name =
+        is_binding_ ? (binding_action_ == GameAction::Pause ? "PRESS KEY..." : getKeyName(custom_key_pause_)) : getKeyName(custom_key_pause_);
 
-    std::array<std::string, 6> options = {
-        "UP:    [ " + up_name + " ]",
-        "DOWN:  [ " + down_name + " ]",
-        "LEFT:  [ " + left_name + " ]",
-        "RIGHT: [ " + right_name + " ]",
-        "PAUSE: [ " + pause_name + " ]",
-        "Save & Back"
-    };
+    std::array<std::string, 6> options = {"UP:    [ " + up_name + " ]",    "DOWN:  [ " + down_name + " ]",  "LEFT:  [ " + left_name + " ]",
+                                          "RIGHT: [ " + right_name + " ]", "PAUSE: [ " + pause_name + " ]", "Save & Back"};
 
     size_t max_w = 0;
     for (const auto& o : options) {
@@ -4477,7 +4606,7 @@ void GameEngine::renderKeyConfig() {
     int block_left = center_col - static_cast<int>(max_w / 2);
 
     for (int i = 0; i < 6; ++i) {
-        Color fg = {255, 255, 255};
+        Color fg           = {255, 255, 255};
         std::string prefix = "  ";
         if (i == key_config_selection_) {
             if (click_feedback_timer_ms_ > 0) {
@@ -4508,22 +4637,22 @@ void GameEngine::drawDoubleBorderBox(int row, int col, int w, int h, Color fg, C
     std::string bl = use_nerd_fonts_ ? "╚" : "+";
     std::string br = use_nerd_fonts_ ? "╝" : "+";
 
-    setCell(row, col, Cell{ .glyph = tl, .fg = fg, .bg = bg });
+    setCell(row, col, Cell{.glyph = tl, .fg = fg, .bg = bg});
     for (int c = col + 1; c < col + w - 1; ++c) {
-        setCell(row, c, Cell{ .glyph = hz, .fg = fg, .bg = bg });
+        setCell(row, c, Cell{.glyph = hz, .fg = fg, .bg = bg});
     }
-    setCell(row, col + w - 1, Cell{ .glyph = tr, .fg = fg, .bg = bg });
+    setCell(row, col + w - 1, Cell{.glyph = tr, .fg = fg, .bg = bg});
 
     for (int r = row + 1; r < row + h - 1; ++r) {
-        setCell(r, col, Cell{ .glyph = vt, .fg = fg, .bg = bg });
-        setCell(r, col + w - 1, Cell{ .glyph = vt, .fg = fg, .bg = bg });
+        setCell(r, col, Cell{.glyph = vt, .fg = fg, .bg = bg});
+        setCell(r, col + w - 1, Cell{.glyph = vt, .fg = fg, .bg = bg});
     }
 
-    setCell(row + h - 1, col, Cell{ .glyph = bl, .fg = fg, .bg = bg });
+    setCell(row + h - 1, col, Cell{.glyph = bl, .fg = fg, .bg = bg});
     for (int c = col + 1; c < col + w - 1; ++c) {
-        setCell(row + h - 1, c, Cell{ .glyph = hz, .fg = fg, .bg = bg });
+        setCell(row + h - 1, c, Cell{.glyph = hz, .fg = fg, .bg = bg});
     }
-    setCell(row + h - 1, col + w - 1, Cell{ .glyph = br, .fg = fg, .bg = bg });
+    setCell(row + h - 1, col + w - 1, Cell{.glyph = br, .fg = fg, .bg = bg});
     menu_accent_ = false;
 }
 
@@ -4539,30 +4668,30 @@ void GameEngine::drawTitleBorderBox(int row, int col, int w, int h, const std::s
     std::string br = use_nerd_fonts_ ? "╝" : "+";
 
     int title_len = static_cast<int>(glyphCount(title));
-    int side = (w - 2 - title_len) / 2;
+    int side      = (w - 2 - title_len) / 2;
 
-    setCell(row, col, Cell{ .glyph = tl, .fg = fg, .bg = bg });
+    setCell(row, col, Cell{.glyph = tl, .fg = fg, .bg = bg});
     int c = col + 1;
     for (int i = 0; i < side; ++i, ++c) {
-        setCell(row, c, Cell{ .glyph = hz, .fg = fg, .bg = bg });
+        setCell(row, c, Cell{.glyph = hz, .fg = fg, .bg = bg});
     }
     drawString(row, c, title, fg, bg);
     c += title_len;
     for (int i = 0; i < w - 2 - side - title_len; ++i, ++c) {
-        setCell(row, c, Cell{ .glyph = hz, .fg = fg, .bg = bg });
+        setCell(row, c, Cell{.glyph = hz, .fg = fg, .bg = bg});
     }
-    setCell(row, c, Cell{ .glyph = tr, .fg = fg, .bg = bg });
+    setCell(row, c, Cell{.glyph = tr, .fg = fg, .bg = bg});
 
     for (int r = row + 1; r < row + h - 1; ++r) {
-        setCell(r, col, Cell{ .glyph = vt, .fg = fg, .bg = bg });
-        setCell(r, col + w - 1, Cell{ .glyph = vt, .fg = fg, .bg = bg });
+        setCell(r, col, Cell{.glyph = vt, .fg = fg, .bg = bg});
+        setCell(r, col + w - 1, Cell{.glyph = vt, .fg = fg, .bg = bg});
     }
 
-    setCell(row + h - 1, col, Cell{ .glyph = bl, .fg = fg, .bg = bg });
+    setCell(row + h - 1, col, Cell{.glyph = bl, .fg = fg, .bg = bg});
     for (int c2 = col + 1; c2 < col + w - 1; ++c2) {
-        setCell(row + h - 1, c2, Cell{ .glyph = hz, .fg = fg, .bg = bg });
+        setCell(row + h - 1, c2, Cell{.glyph = hz, .fg = fg, .bg = bg});
     }
-    setCell(row + h - 1, col + w - 1, Cell{ .glyph = br, .fg = fg, .bg = bg });
+    setCell(row + h - 1, col + w - 1, Cell{.glyph = br, .fg = fg, .bg = bg});
     menu_accent_ = false;
 }
 
@@ -4587,27 +4716,25 @@ void GameEngine::renderDevMenu() {
 
     drawTitleBorderBox(center_row - 6, center_col - 22, 44, 13, " DEVELOPER MENU ", {255, 50, 50}, {0, 0, 0});
 
-    std::string color_name{ kThemeNames[selected_pacman_color_ % Config::THEME_COUNT] };
+    std::string color_name{kThemeNames[selected_pacman_color_ % Config::THEME_COUNT]};
 
-    std::array<std::string, 9> options = {
-        "Level ID:         < " + std::to_string(level_) + " >",
-        "Pac-Man Color:    < " + color_name + " >",
-        "Hearts (Max 66):  < " + std::to_string(lives_) + " >",
-        "Score:            < " + std::to_string(score_) + " >",
-        "Immortal Cheat:   < " + std::string(immortal_ ? "YES" : "NO") + " >",
-        "Freeze Ghosts:    < " + std::string(cheat_freeze_ghosts_ ? "YES" : "NO") + " >",
-        "Super Speed:      < " + std::string(cheat_super_speed_ ? "YES" : "NO") + " >",
-        "Skip Level:       [ Press ENTER ]",
-        "[ EXIT DEVELOPER MENU ]"
-    };
+    std::array<std::string, 9> options = {"Level ID:         < " + std::to_string(level_) + " >",
+                                          "Pac-Man Color:    < " + color_name + " >",
+                                          "Hearts (Max 66):  < " + std::to_string(lives_) + " >",
+                                          "Score:            < " + std::to_string(score_) + " >",
+                                          "Immortal Cheat:   < " + std::string(immortal_ ? "YES" : "NO") + " >",
+                                          "Freeze Ghosts:    < " + std::string(cheat_freeze_ghosts_ ? "YES" : "NO") + " >",
+                                          "Super Speed:      < " + std::string(cheat_super_speed_ ? "YES" : "NO") + " >",
+                                          "Skip Level:       [ Press ENTER ]",
+                                          "[ EXIT DEVELOPER MENU ]"};
 
     int block_left = center_col - 18;
 
     for (int i = 0; i < 9; ++i) {
-        Color fg = {255, 255, 255};
+        Color fg           = {255, 255, 255};
         std::string prefix = "  ";
         if (i == dev_menu_selection_) {
-            fg = {255, 255, 0};
+            fg     = {255, 255, 0};
             prefix = "> ";
         }
         drawString(center_row - 4 + i, block_left, prefix + options[i], fg);
@@ -4615,10 +4742,8 @@ void GameEngine::renderDevMenu() {
 }
 
 std::filesystem::path GameEngine::localBinPath() {
-    const char* home_env = std::getenv("HOME");
-    std::filesystem::path home = (home_env != nullptr && *home_env != '\0')
-        ? std::filesystem::path(home_env)
-        : std::filesystem::path("/tmp");
+    const char* home_env       = std::getenv("HOME");
+    std::filesystem::path home = (home_env != nullptr && *home_env != '\0') ? std::filesystem::path(home_env) : std::filesystem::path("/tmp");
     return home / ".local" / "bin" / "pacterm";
 }
 
@@ -4630,7 +4755,8 @@ bool GameEngine::install_bin(bool cli_mode) {
         std::filesystem::create_directories(dest_path.parent_path());
 
         std::filesystem::copy_file(self_path, dest_path, std::filesystem::copy_options::overwrite_existing);
-        std::filesystem::permissions(dest_path, std::filesystem::perms::owner_exec | std::filesystem::perms::group_exec | std::filesystem::perms::others_exec, std::filesystem::perm_options::add);
+        std::filesystem::permissions(dest_path, std::filesystem::perms::owner_exec | std::filesystem::perms::group_exec | std::filesystem::perms::others_exec,
+                                     std::filesystem::perm_options::add);
 
         if (cli_mode) {
             std::cout << "Successfully copied pacterm binary to " << dest_path << std::endl;
@@ -4675,18 +4801,18 @@ namespace {
     enum class WaveType { Sine, Square, Triangle };
 
     struct WavHeader {
-        char chunkId[4] = {'R', 'I', 'F', 'F'};
-        uint32_t chunkSize = 0;
-        char format[4] = {'W', 'A', 'V', 'E'};
-        char subchunk1Id[4] = {'f', 'm', 't', ' '};
+        char chunkId[4]        = {'R', 'I', 'F', 'F'};
+        uint32_t chunkSize     = 0;
+        char format[4]         = {'W', 'A', 'V', 'E'};
+        char subchunk1Id[4]    = {'f', 'm', 't', ' '};
         uint32_t subchunk1Size = 16;
-        uint16_t audioFormat = 1;
-        uint16_t numChannels = 1;
-        uint32_t sampleRate = 44100;
-        uint32_t byteRate = 0;
-        uint16_t blockAlign = 0;
+        uint16_t audioFormat   = 1;
+        uint16_t numChannels   = 1;
+        uint32_t sampleRate    = 44100;
+        uint32_t byteRate      = 0;
+        uint16_t blockAlign    = 0;
         uint16_t bitsPerSample = 16;
-        char subchunk2Id[4] = {'d', 'a', 't', 'a'};
+        char subchunk2Id[4]    = {'d', 'a', 't', 'a'};
         uint32_t subchunk2Size = 0;
     };
 
@@ -4697,12 +4823,12 @@ namespace {
         int num_samples = static_cast<int>(duration * sample_rate);
         std::vector<int16_t> samples(num_samples);
         double max_amp = 32767 * volume;
-        double phase = 0.0;
+        double phase   = 0.0;
 
         for (int i = 0; i < num_samples; ++i) {
-            double t = static_cast<double>(i) / sample_rate;
+            double t        = static_cast<double>(i) / sample_rate;
             double progress = t / duration;
-            double freq = start_freq + (end_freq - start_freq) * progress;
+            double freq     = start_freq + (end_freq - start_freq) * progress;
 
             phase += 2.0 * PI * freq / sample_rate;
             if (phase > 2.0 * PI) {
@@ -4725,8 +4851,8 @@ namespace {
                 }
             }
 
-            double env = 1.0;
-            double fade_in_len = 0.01 * duration;
+            double env          = 1.0;
+            double fade_in_len  = 0.01 * duration;
             double fade_out_len = 0.15 * duration;
             if (t < fade_in_len) {
                 env = t / fade_in_len;
@@ -4759,16 +4885,17 @@ namespace {
     void writeWavFile(const std::string& filename, const std::vector<int16_t>& samples) {
         WavHeader header;
         header.subchunk2Size = samples.size() * sizeof(int16_t);
-        header.chunkSize = 36 + header.subchunk2Size;
-        header.byteRate = header.sampleRate * header.numChannels * (header.bitsPerSample / 8);
-        header.blockAlign = header.numChannels * (header.bitsPerSample / 8);
+        header.chunkSize     = 36 + header.subchunk2Size;
+        header.byteRate      = header.sampleRate * header.numChannels * (header.bitsPerSample / 8);
+        header.blockAlign    = header.numChannels * (header.bitsPerSample / 8);
 
         std::ofstream out(filename, std::ios::binary);
-        if (!out) return;
+        if (!out)
+            return;
         out.write(reinterpret_cast<const char*>(&header), sizeof(header));
         out.write(reinterpret_cast<const char*>(samples.data()), header.subchunk2Size);
     }
-}
+} // namespace
 
 void GameEngine::generateSounds() {
     std::filesystem::path sound_dir = getSoundDirectory();
@@ -4801,8 +4928,8 @@ void GameEngine::generateSounds() {
         std::vector<int16_t> death_samples;
         for (int step = 0; step < 8; ++step) {
             double start_f = 850.0 - step * 95.0;
-            double end_f = 750.0 - step * 95.0;
-            auto chirp = generateRetroSound(start_f, end_f, 0.09, WaveType::Square, 0.2);
+            double end_f   = 750.0 - step * 95.0;
+            auto chirp     = generateRetroSound(start_f, end_f, 0.09, WaveType::Square, 0.2);
             death_samples.insert(death_samples.end(), chirp.begin(), chirp.end());
             auto silence = generateNote(0.0, 0.02, WaveType::Sine, 0.0);
             death_samples.insert(death_samples.end(), silence.begin(), silence.end());
@@ -4812,46 +4939,29 @@ void GameEngine::generateSounds() {
 
     std::filesystem::path p_ready = sound_dir / "ready.wav";
     if (!std::filesystem::exists(p_ready)) {
-        std::vector<std::pair<double, double>> ready_notes = {
-            {523.25, 0.08},
-            {0.0, 0.02},
-            {659.25, 0.08},
-            {0.0, 0.02},
-            {783.99, 0.08},
-            {0.0, 0.02},
-            {659.25, 0.08},
-            {0.0, 0.02},
-            {783.99, 0.08},
-            {0.0, 0.02},
-            {1046.50, 0.25}
-        };
-        auto samples = generateMelody(ready_notes, WaveType::Triangle, 0.2);
+        std::vector<std::pair<double, double>> ready_notes = {{523.25, 0.08}, {0.0, 0.02}, {659.25, 0.08}, {0.0, 0.02}, {783.99, 0.08}, {0.0, 0.02},
+                                                              {659.25, 0.08}, {0.0, 0.02}, {783.99, 0.08}, {0.0, 0.02}, {1046.50, 0.25}};
+        auto samples                                       = generateMelody(ready_notes, WaveType::Triangle, 0.2);
         writeWavFile(p_ready.string(), samples);
     }
 
     std::filesystem::path p_clear = sound_dir / "clear.wav";
     if (!std::filesystem::exists(p_clear)) {
-        std::vector<std::pair<double, double>> clear_notes = {
-            {523.25, 0.08},
-            {659.25, 0.08},
-            {783.99, 0.08},
-            {1046.50, 0.08},
-            {783.99, 0.08},
-            {1046.50, 0.08},
-            {1318.51, 0.35}
-        };
-        auto samples = generateMelody(clear_notes, WaveType::Triangle, 0.2);
+        std::vector<std::pair<double, double>> clear_notes = {{523.25, 0.08}, {659.25, 0.08},  {783.99, 0.08}, {1046.50, 0.08},
+                                                              {783.99, 0.08}, {1046.50, 0.08}, {1318.51, 0.35}};
+        auto samples                                       = generateMelody(clear_notes, WaveType::Triangle, 0.2);
         writeWavFile(p_clear.string(), samples);
     }
 }
 
 void GameEngine::playSound(const std::string& name) {
-    if (muted_) return;
+    if (muted_)
+        return;
 
     std::filesystem::path p(name);
-    std::string filename = p.filename().string();
+    std::string filename            = p.filename().string();
     std::filesystem::path full_path = getSoundDirectory() / filename;
-    std::string path_str = full_path.string();
+    std::string path_str            = full_path.string();
 
     std::string cmd = "(paplay " + path_str + " || pw-play " + path_str + " || mpg123 " + path_str + " || mpv --no-video " + path_str + ") >/dev/null 2>&1 &";
     std::system(cmd.c_str());
@@ -4881,32 +4991,33 @@ std::filesystem::path GameEngine::getSoundDirectory() {
 }
 
 void AnimationController::fadeIn(const Color& color, int duration_ms) {
-    state = State::FadingIn;
-    elapsed_ms_ = 0;
+    state             = State::FadingIn;
+    elapsed_ms_       = 0;
     this->duration_ms = duration_ms;
-    start_color = {0, 0, 0};
-    end_color = color;
-    progress = 0.0f;
+    start_color       = {0, 0, 0};
+    end_color         = color;
+    progress          = 0.0f;
 }
 
 void AnimationController::update(int delta_ms) {
-    if (state == State::Idle) return;
+    if (state == State::Idle)
+        return;
     elapsed_ms_ += delta_ms;
     if (elapsed_ms_ >= duration_ms) {
         elapsed_ms_ = duration_ms;
-        progress = 1.0f;
-        state = State::Active;
+        progress    = 1.0f;
+        state       = State::Active;
     } else {
         progress = static_cast<float>(elapsed_ms_) / duration_ms;
     }
 }
 
 Color AnimationController::getCurrentColor() const {
-    if (state == State::Idle) return start_color;
-    float t = progress;
+    if (state == State::Idle)
+        return start_color;
+    float t   = progress;
     uint8_t r = static_cast<uint8_t>(start_color.r + t * (end_color.r - start_color.r));
     uint8_t g = static_cast<uint8_t>(start_color.g + t * (end_color.g - start_color.g));
     uint8_t b = static_cast<uint8_t>(start_color.b + t * (end_color.b - start_color.b));
     return {r, g, b};
 }
-

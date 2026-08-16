@@ -16,14 +16,7 @@
 #include <unordered_map>
 #include <filesystem>
 
-enum class GameAction : uint8_t {
-    None  = 0,
-    Up    = 1,
-    Down  = 2,
-    Left  = 3,
-    Right = 4,
-    Pause = 5
-};
+enum class GameAction : uint8_t { None = 0, Up = 1, Down = 2, Left = 3, Right = 4, Pause = 5 };
 
 enum class LevelTheme : uint8_t {
     Classic = 0,
@@ -59,13 +52,9 @@ struct Powerup {
 };
 
 struct AnimationController {
-    enum class State {
-        Idle,
-        FadingIn,
-        Active
-    };
+    enum class State { Idle, FadingIn, Active };
 
-    State state = State::Idle;
+    State state     = State::Idle;
     int elapsed_ms_ = 0;
     int duration_ms = 0;
     Color start_color;
@@ -94,34 +83,34 @@ private:
     PacMan pacman_;
     std::array<Ghost, 4> ghosts_;
 
-    int score_ = 0;
-    int high_score_ = 0;
-    int lives_ = Config::INITIAL_LIVES;
-    int level_ = 1;
+    int score_                = 0;
+    int high_score_           = 0;
+    int lives_                = Config::INITIAL_LIVES;
+    int level_                = 1;
     int pause_menu_selection_ = 0;
-    int ghosts_eaten_combo_ = 0;
-    bool extra_life_awarded_ = false;
+    int ghosts_eaten_combo_   = 0;
+    bool extra_life_awarded_  = false;
 
-    int main_menu_selection_ = 0;
+    int main_menu_selection_       = 0;
     std::string main_menu_message_ = "";
-    int main_menu_msg_timer_ms_ = 0;
+    int main_menu_msg_timer_ms_    = 0;
 
-    bool running_ = true;
-    int phase_timer_ms_ = 0;
+    bool running_             = true;
+    int phase_timer_ms_       = 0;
     int pac_move_accumulator_ = 0;
     std::array<int, 4> ghost_accumulators_{};
     int global_mode_timer_ms_ = 0;
-    size_t current_wave_ = 0;
+    size_t current_wave_      = 0;
 
     struct termios original_termios_{};
     bool raw_mode_enabled_ = false;
-    Vec2 term_size_ = {80, 24};
-    bool use_nerd_fonts_ = true;
+    Vec2 term_size_        = {80, 24};
+    bool use_nerd_fonts_   = true;
 
-    int mouse_x_ = 0;
-    int mouse_y_ = 0;
-    int mouse_button_ = 0;
-    bool mouse_press_ = false;
+    int mouse_x_             = 0;
+    int mouse_y_             = 0;
+    int mouse_button_        = 0;
+    bool mouse_press_        = false;
     bool mouse_hover_active_ = false;
     static bool signal_term_restored_;
     static struct termios signal_original_termios_;
@@ -130,7 +119,7 @@ private:
     static void restoreTerminalForSignal();
     static void installSignals();
 
-    int render_width_ = 0;
+    int render_width_  = 0;
     int render_height_ = 0;
     std::vector<std::vector<Cell>> front_buffer_;
     std::vector<std::vector<Cell>> back_buffer_;
@@ -177,28 +166,28 @@ private:
 
     int computeLevelRating(double elapsed_s, double par_s, double& penalty_out) const;
     struct Viewport {
-        int start_x = 0;
-        int start_y = 0;
-        int visible_cols = Config::MAP_WIDTH;
-        int visible_rows = Config::MAP_HEIGHT;
-        int base_row = 0;
-        int base_col = 0;
+        int start_x       = 0;
+        int start_y       = 0;
+        int visible_cols  = Config::MAP_WIDTH;
+        int visible_rows  = Config::MAP_HEIGHT;
+        int base_row      = 0;
+        int base_col      = 0;
         bool is_scrolling = false;
     };
     Viewport getViewport() const;
 
     void initRenderer();
     void setCell(int row, int col, const Cell& cell);
-    void setTileGlyph(int row, int col, std::string glyph, Color fg, Color bg = {0,0,0}, bool bold = false);
+    void setTileGlyph(int row, int col, std::string glyph, Color fg, Color bg = {0, 0, 0}, bool bold = false);
     void fillRow(int row, Color fg, Color bg);
     static size_t utf8SequenceLength(unsigned char c) noexcept;
     size_t glyphCount(const std::string& text) const noexcept;
     size_t displayWidth(const std::string& text) const noexcept;
-    void drawString(int row, int col, const std::string& text, Color fg, Color bg = {0,0,0}, bool bold = false);
-    void drawGradientString(int row, int col, const std::string& text, Color start_fg, Color end_fg, Color bg = {0,0,0});
-    void drawBox(int row, int col, int w, int h, Color fg, Color bg = {0,0,0});
-    void drawDoubleBorderBox(int row, int col, int w, int h, Color fg, Color bg = {0,0,0});
-    void drawTitleBorderBox(int row, int col, int w, int h, const std::string& title, Color fg, Color bg = {0,0,0});
+    void drawString(int row, int col, const std::string& text, Color fg, Color bg = {0, 0, 0}, bool bold = false);
+    void drawGradientString(int row, int col, const std::string& text, Color start_fg, Color end_fg, Color bg = {0, 0, 0});
+    void drawBox(int row, int col, int w, int h, Color fg, Color bg = {0, 0, 0});
+    void drawDoubleBorderBox(int row, int col, int w, int h, Color fg, Color bg = {0, 0, 0});
+    void drawTitleBorderBox(int row, int col, int w, int h, const std::string& title, Color fg, Color bg = {0, 0, 0});
     void clearBuffer(Color bg = {0, 0, 0});
     void presentFrame();
 
@@ -217,41 +206,41 @@ private:
     void activateSettingsSelection();
     void startLevel(int lvl);
 
-    bool immortal_ = false;
-    bool muted_ = false;
-    bool cheat_freeze_ghosts_ = false;
-    bool cheat_super_speed_ = false;
-    int dev_menu_selection_ = 0;
-    std::string dev_input_sequence_ = "";
+    bool immortal_                   = false;
+    bool muted_                      = false;
+    bool cheat_freeze_ghosts_        = false;
+    bool cheat_super_speed_          = false;
+    int dev_menu_selection_          = 0;
+    std::string dev_input_sequence_  = "";
     std::string dev_password_buffer_ = "";
-    GamePhase pre_dev_phase_ = GamePhase::MainMenu;
+    GamePhase pre_dev_phase_         = GamePhase::MainMenu;
     void addScore(int points);
     void saveHighScore();
     void loadHighScore();
     std::filesystem::path getCacheFilePath();
     bool isAzertyLayout();
 
-    int max_unlocked_level_ = 1;
+    int max_unlocked_level_    = 1;
     int selected_pacman_color_ = 0;
-    int level_select_cursor_ = 0;
+    int level_select_cursor_   = 0;
     void renderLevelSelector();
 
-    bool unlocked_rainbow_ = false;
+    bool unlocked_rainbow_      = false;
     int selected_general_theme_ = 0;
-    int settings_selection_ = 0;
-    bool apply_menu_theme_ = false;
-    bool menu_accent_ = false;
-    std::string username_ = "Wael";
+    int settings_selection_     = 0;
+    bool apply_menu_theme_      = false;
+    bool menu_accent_           = false;
+    std::string username_       = "Wael";
     std::string input_username_ = "";
-    std::string redeem_input_ = "";
-    std::string redeem_result_ = "";
-    bool redeem_result_valid_ = false;
-    int games_played_ = 0;
-    int dots_eaten_ = 0;
-    int ghosts_eaten_ = 0;
-    int deaths_ = 0;
-    int power_pellets_ = 0;
-    int time_played_ms_ = 0;
+    std::string redeem_input_   = "";
+    std::string redeem_result_  = "";
+    bool redeem_result_valid_   = false;
+    int games_played_           = 0;
+    int dots_eaten_             = 0;
+    int ghosts_eaten_           = 0;
+    int deaths_                 = 0;
+    int power_pellets_          = 0;
+    int time_played_ms_         = 0;
     Color getRainbowColor(double offset) const;
     Color themePrimary(int theme, double offset) const;
     Color themeAccent(int theme, double offset) const;
@@ -276,15 +265,15 @@ private:
     std::array<Powerup, 2> current_powerups_{};
 
     int lava_resist_cooldown_ms_ = 0;
-    bool lava_resist_active_ = false;
-    int lava_resist_window_ms_ = 0;
-    int warp_stun_timer_ms_ = 0;
-    int glitch_warp_timer_ms_ = 0;
+    bool lava_resist_active_     = false;
+    int lava_resist_window_ms_   = 0;
+    int warp_stun_timer_ms_      = 0;
+    int glitch_warp_timer_ms_    = 0;
 
-    Vec2 portal_A1_ = {0, 0};
-    Vec2 portal_A2_ = {0, 0};
-    Vec2 portal_B1_ = {0, 0};
-    Vec2 portal_B2_ = {0, 0};
+    Vec2 portal_A1_       = {0, 0};
+    Vec2 portal_A2_       = {0, 0};
+    Vec2 portal_B1_       = {0, 0};
+    Vec2 portal_B2_       = {0, 0};
     bool pac_just_warped_ = false;
 
     struct AcidTrail {
@@ -314,8 +303,8 @@ private:
     int special_item_timer_ms_ = 0;
 
     int cherry_spawn_timer_ms_ = 0;
-    int apple_spawn_timer_ms_ = 0;
-    int heart_spawn_timer_ms_ = 0;
+    int apple_spawn_timer_ms_  = 0;
+    int heart_spawn_timer_ms_  = 0;
 
     void spawnSpecialItem(TileType type);
     void spawnScorePopup(Vec2 pos, int points, Color fg);
@@ -325,42 +314,42 @@ private:
 
     AnimationController fade_animation_;
 
-    int afk_timer_ms_ = 0;
+    int afk_timer_ms_         = 0;
     uint64_t current_time_ms_ = 0;
-    double screensaver_x_ = -10.0;
-    int screensaver_dir_ = 1;
+    double screensaver_x_     = -10.0;
+    int screensaver_dir_      = 1;
     void renderScreensaver();
 
     std::vector<FloatingPopup> popups_;
     std::vector<Particle> particles_;
     int speed_boost_timer_ms_ = 0;
-    int ice_freeze_timer_ms_ = 0;
+    int ice_freeze_timer_ms_  = 0;
 
     int fever_timer_ms_ = 0;
-    bool fever_active_ = false;
+    bool fever_active_  = false;
 
-    int ghost_freeze_timer_ms_ = 0;
-    int pac_speed_timer_ms_ = 0;
+    int ghost_freeze_timer_ms_      = 0;
+    int pac_speed_timer_ms_         = 0;
     int letter_score_mult_timer_ms_ = 0;
 
     LetterHuntState letter_hunt_;
     bool pacterm_plus_unlocked_ = false;
 
     uint64_t level_start_time_ms_ = 0;
-    int level_deaths_ = 0;
+    int level_deaths_             = 0;
 
     std::unordered_map<int, GameAction> key_to_action_;
     void rebuildKeybindings();
     void renderKeyConfig();
     std::string getKeyName(int k);
 
-    int custom_key_up_ = 'w';
-    int custom_key_down_ = 's';
-    int custom_key_left_ = 'a';
-    int custom_key_right_ = 'd';
-    int custom_key_pause_ = 'p';
-    int key_config_selection_ = 0;
-    bool is_binding_ = false;
+    int custom_key_up_         = 'w';
+    int custom_key_down_       = 's';
+    int custom_key_left_       = 'a';
+    int custom_key_right_      = 'd';
+    int custom_key_pause_      = 'p';
+    int key_config_selection_  = 0;
+    bool is_binding_           = false;
     GameAction binding_action_ = GameAction::None;
 
     void generateSounds();
@@ -369,4 +358,3 @@ private:
 
     std::mt19937 rng_;
 };
-
