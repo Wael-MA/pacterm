@@ -1,4 +1,4 @@
-# PacTerm - Terminal Pac-Man V1.3.7
+# PacTerm - Terminal Pac-Man V1.3.8
 
 A terminal-based Pac-Man game written in C++20. Navigate the maze, eat pellets, avoid ghosts, and chase high scores right in your terminal.
 
@@ -222,6 +222,18 @@ Contributions are welcome! Please follow these steps:
 - Update documentation for user-facing changes
 
 ## Changelog
+
+### v1.3.8
+- **Bug fix (critical)**: Fixed a malformed 26-char row in map 17 that caused an out-of-bounds template read, a broken wall, and 2 unreachable dots at (19,6) and (19,7); added a compile-time static_assert that all 30 map templates are exactly 28 columns wide
+- **Bug fix**: Wide emoji glyphs (🍒 🍏 ❤️ ✨) no longer misalign the rest of the row — the frame composer tracks cursor position by glyph display width and reserves empty continuation cells
+- **Bug fix**: Frightened ghosts no longer escape the ghost house during a power pellet (in-house dot-count release can no longer be bypassed)
+- **Bug fix**: Frightened ghosts now flicker blue/white correctly — the flash clock was using a stale timer
+- **Bug fix**: Ghost swap/pass-through crossings are now caught via previous-tile tracking
+- **Bug fix**: The dash (levels 17–19) no longer ignores collisions/dot scoring and can no longer pass through the ghost-house door
+- **Bug fix**: Scrolling viewport is clamped at the bottom edge so the map isn't cut off near the bottom of the maze
+- **Bug fix**: The "dev" cheat sequence is only captured in Playing/Main Menu/Level Selector and can no longer hijack the username or settings screens
+- **Bug fix**: Added SIGSEGV/SIGABRT/SIGBUS/SIGFPE handlers that restore the terminal if the game crashes
+- **Performance**: Replaced the ESC-sequence busy-wait with a `poll()`-based timeout, cutting input latency
 
 ### v1.3.7
 - **Cleanup**: Unified the version string across all files, renamed the CMake target to `pacterm`, and aligned the README with what the code actually does (CLI flags, sound backend, key configuration)
