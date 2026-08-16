@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.7
+// pacterm v1.3.8
 #pragma once
 
 #include "Types.hpp"
@@ -11,6 +11,7 @@ public:
     GhostMode mode = GhostMode::InHouse;
 
     int dotCounter = 0;
+    Vec2 prevPosition = {-1, -1};
 
     Ghost(GhostPersonality personality)
         : personality(personality) {
@@ -22,6 +23,7 @@ public:
         currentDirection = Direction::None;
         requestedDirection = Direction::None;
         dotCounter = 0;
+        prevPosition = {-1, -1};
 
         switch (personality) {
             case GhostPersonality::Blinky:
@@ -50,7 +52,7 @@ public:
     }
 
     void frighten(int duration_ms) {
-        if (mode != GhostMode::Eaten) {
+        if (mode != GhostMode::Eaten && mode != GhostMode::InHouse) {
             mode = GhostMode::Frightened;
             frightened_remaining_ = duration_ms;
             currentDirection = reverseDirection();

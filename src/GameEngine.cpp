@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.7
+// pacterm v1.3.8
 #include "GameEngine.hpp"
 #include <unistd.h>
-#include <cerrno>
 #include <sys/ioctl.h>
 #include <cstdio>
 #include <algorithm>
@@ -14,6 +13,7 @@
 #include <iostream>
 #include <cmath>
 #include <csignal>
+#include <poll.h>
 
 bool GameEngine::signal_term_restored_ = false;
 struct termios GameEngine::signal_original_termios_{};
@@ -235,6 +235,10 @@ void GameEngine::installSignals() {
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
     sigaction(SIGTSTP, &sa, nullptr);
+    sigaction(SIGSEGV, &sa, nullptr);
+    sigaction(SIGABRT, &sa, nullptr);
+    sigaction(SIGBUS, &sa, nullptr);
+    sigaction(SIGFPE, &sa, nullptr);
     sa.sa_handler = signalContHandler;
     sigaction(SIGCONT, &sa, nullptr);
 }
@@ -414,24 +418,16 @@ int GameEngine::readKey() {
     if (n <= 0) return -1;
 
     if (c == 27) {
-        auto read_char_timeout = [](char& out_c) -> bool {
-            int retries = 0;
-            while (retries < 1000) {
-                ssize_t nr = ::read(STDIN_FILENO, &out_c, 1);
-                if (nr > 0) return true;
-                if (nr == 0 || (nr < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))) {
-                    usleep(50);
-                    retries++;
-                } else {
-                    return false;
-                }
-            }
-            return false;
+        auto read_char_timeout = [](char& out_c, int timeout_ms) -> bool {
+            struct pollfd pfd{ STDIN_FILENO, POLLIN, 0 };
+            int pr = ::poll(&pfd, 1, timeout_ms);
+            if (pr <= 0) return false;
+            return ::read(STDIN_FILENO, &out_c, 1) > 0;
         };
 
         char seq[2];
-        if (!read_char_timeout(seq[0])) return 27;
-        if (!read_char_timeout(seq[1])) return 27;
+        if (!read_char_timeout(seq[0], 50)) return 27;
+        if (!read_char_timeout(seq[1], 50)) return 27;
 
         if (seq[0] == '[') {
             if (seq[1] == '<') {
@@ -441,7 +437,7 @@ int GameEngine::readKey() {
                 char term = 0;
                 while (params.size() < 32) {
                     char ch;
-                    if (!read_char_timeout(ch)) break;
+                    if (!read_char_timeout(ch, 50)) break;
                     if (ch == 'M' || ch == 'm') { term = ch; valid = true; break; }
                     params += ch;
                 }
@@ -482,7 +478,8 @@ void GameEngine::handleInput(int key) {
         return;
     }
 
-    if (key >= 32 && key <= 126 && phase_ != GamePhase::DevPasswordInput && phase_ != GamePhase::DevMenu && phase_ != GamePhase::RedeemInput) {
+    if (key >= 32 && key <= 126 && phase_ != GamePhase::DevPasswordInput && phase_ != GamePhase::DevMenu && phase_ != GamePhase::RedeemInput &&
+        (phase_ == GamePhase::Playing || phase_ == GamePhase::MainMenu || phase_ == GamePhase::LevelSelector)) {
         char c = std::tolower(static_cast<char>(key));
         dev_input_sequence_ += c;
         if (dev_input_sequence_.length() > 3) {
@@ -796,9 +793,12 @@ void GameEngine::handleInput(int key) {
 
                 for (int i = 0; i < 3; ++i) {
                     Vec2 next_pos = { pacman_.position.x + dir_vec.x, pacman_.position.y + dir_vec.y };
-                    if (map_.getTile(next_pos) != TileType::Wall) {
+                    TileType next_tile = map_.getTile(next_pos);
+                    if (next_tile != TileType::Wall && next_tile != TileType::GhostDoor) {
                         pacman_.position = next_pos;
                         spawnParticleBurst(pacman_.position, {255, 215, 0});
+                        checkCollisions();
+                        if (phase_ != GamePhase::Playing) break;
                     } else {
                         break;
                     }
@@ -1719,6 +1719,8 @@ Vec2 GameEngine::calculateGhostTarget(const Ghost& ghost) const {
 }
 
 void GameEngine::moveGhost(Ghost& ghost) {
+    ghost.prevPosition = ghost.position;
+
     if (ghost.mode == GhostMode::InHouse) {
         bool release = false;
         if (ghost.personality == GhostPersonality::Pinky && ghost.dotCounter >= 0) release = true;
@@ -1838,7 +1840,8 @@ void GameEngine::checkCollisions() {
     }
 
     for (auto& g : ghosts_) {
-        if (g.position == pacman_.position) {
+        if (g.position == pacman_.position ||
+            (g.prevPosition.x >= 0 && g.prevPosition == pacman_.position)) {
             if (g.mode == GhostMode::Frightened) {
                 eatGhost(g);
             } else if (g.mode == GhostMode::Chase || g.mode == GhostMode::Scatter) {
@@ -2010,6 +2013,16 @@ void GameEngine::setCell(int row, int col, const Cell& cell) {
             }
         }
         back_buffer_[row][col] = out;
+    }
+}
+
+void GameEngine::setTileGlyph(int row, int col, std::string glyph, Color fg, Color bg, bool bold) {
+    size_t w = displayWidth(glyph);
+    Cell c1{ .glyph = std::move(glyph), .fg = fg, .bg = bg, .bold = bold };
+    setCell(row, col, c1);
+    for (size_t k = 1; k < w; ++k) {
+        Cell pad{ .glyph = "", .fg = fg, .bg = bg, .bold = bold };
+        setCell(row, col + static_cast<int>(k), pad);
     }
 }
 
@@ -2239,7 +2252,7 @@ void GameEngine::presentFrame() {
 
                 output_batch_ += back.glyph;
 
-                ++cursor_c;
+                cursor_c += static_cast<int>(displayWidth(back.glyph));
             }
         }
     }
@@ -2424,6 +2437,10 @@ GameEngine::Viewport GameEngine::getViewport() const {
         vp.start_x = pacman_.position.x - vp.visible_cols / 2;
 
         if (vp.start_y < 0) vp.start_y = 0;
+        if (vp.start_y + vp.visible_rows > Config::MAP_HEIGHT) {
+            vp.start_y = Config::MAP_HEIGHT - vp.visible_rows;
+        }
+        if (vp.start_y < 0) vp.start_y = 0;
 
         if (vp.start_x < 0) vp.start_x = 0;
         if (vp.start_x + vp.visible_cols > Config::MAP_WIDTH) {
@@ -2541,23 +2558,14 @@ void GameEngine::renderMap(const Viewport* vpp) {
                 setCell(screen_row, screen_col, c1);
                 setCell(screen_row, screen_col + 1, c2);
             } else if (t == TileType::Cherry) {
-                c1.glyph = use_nerd_fonts_ ? "🍒" : "c";
-                c2.glyph = " ";
-                c1.fg = Color{255, 0, 0};
-                setCell(screen_row, screen_col, c1);
-                setCell(screen_row, screen_col + 1, c2);
+                setTileGlyph(screen_row, screen_col,
+                             use_nerd_fonts_ ? "🍒" : "c", Color{255, 0, 0});
             } else if (t == TileType::GoldenApple) {
-                c1.glyph = use_nerd_fonts_ ? "🍏" : "a";
-                c2.glyph = " ";
-                c1.fg = Color{255, 215, 0};
-                setCell(screen_row, screen_col, c1);
-                setCell(screen_row, screen_col + 1, c2);
+                setTileGlyph(screen_row, screen_col,
+                             use_nerd_fonts_ ? "🍏" : "a", Color{255, 215, 0});
             } else if (t == TileType::Heart) {
-                c1.glyph = use_nerd_fonts_ ? "❤️" : "h";
-                c2.glyph = " ";
-                c1.fg = Color{255, 105, 180};
-                setCell(screen_row, screen_col, c1);
-                setCell(screen_row, screen_col + 1, c2);
+                setTileGlyph(screen_row, screen_col,
+                             use_nerd_fonts_ ? "❤️" : "h", Color{255, 105, 180});
             } else if (t >= TileType::LetterP && t <= TileType::LetterM) {
                 int letter_idx = static_cast<int>(t) - static_cast<int>(TileType::LetterP);
                 c1.glyph = std::string(1, "PACTERM"[letter_idx]);
@@ -2709,7 +2717,7 @@ void GameEngine::renderEntities(const Viewport* vpp) {
                 if (g.mode == GhostMode::Frightened) {
                     c1.glyph = use_nerd_fonts_ ? "ᗣ" : "M";
                     c2.glyph = " ";
-                    if (g.isFrightenedFlashing() && ((phase_timer_ms_ / 200) % 2 == 0)) {
+                    if (g.isFrightenedFlashing() && ((current_time_ms_ / 200) % 2 == 0)) {
                         c1.fg = {255, 255, 255};
                     } else {
                         c1.fg = {33, 33, 255};
@@ -4297,7 +4305,11 @@ void GameEngine::renderEffects(const Viewport* vpp) {
             } else {
                 cell.glyph = "·";
             }
-            setCell(screen_row, screen_col, cell);
+            if (displayWidth(cell.glyph) > 1) {
+                setTileGlyph(screen_row, screen_col, cell.glyph, cell.fg, cell.bg);
+            } else {
+                setCell(screen_row, screen_col, cell);
+            }
         }
     }
 

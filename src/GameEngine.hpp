@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.7
+// pacterm v1.3.8
 #pragma once
 
 #include "Types.hpp"
@@ -189,6 +189,7 @@ private:
 
     void initRenderer();
     void setCell(int row, int col, const Cell& cell);
+    void setTileGlyph(int row, int col, std::string glyph, Color fg, Color bg = {0,0,0}, bool bold = false);
     void fillRow(int row, Color fg, Color bg);
     static size_t utf8SequenceLength(unsigned char c) noexcept;
     size_t glyphCount(const std::string& text) const noexcept;

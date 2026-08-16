@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.7
+// pacterm v1.3.8
 #pragma once
 
 #include <cstdint>
 #include <array>
 #include <string>
 #include <vector>
+#include <algorithm>
+#include <cstring>
 
 struct Vec2 {
     int x = 0;
@@ -137,7 +139,7 @@ namespace Config {
 
     inline constexpr int INITIAL_LIVES = 3;
 
-    inline constexpr const char* PACTERM_VERSION = "1.3.7";
+    inline constexpr const char* PACTERM_VERSION = "1.3.8";
 
     inline constexpr int THEME_COUNT = 10;
     inline constexpr int PACTERM_PLUS_THEME = 9;
@@ -748,7 +750,7 @@ namespace MapTemplates {
         "#.###.######.##.######.###.#",
         "#o# #.#    #.##.#    #.# #o#",
         "#.###.######.##.######.###.#",
-        "#.....##..........##.....#",
+        "#.....##............##.....#",
         "###.####.##########.####.###",
         "###.####.##########.####.###",
         "#......##....##....##......#",
@@ -1217,6 +1219,30 @@ namespace MapTemplates {
         "#..........................#",
         "############################",
     }};
+
+    namespace detail {
+        constexpr bool allTemplatesValid() {
+            const std::array<const std::array<const char*, 31>*, 30> maps = {
+                &MAP_TEMPLATE_1, &MAP_TEMPLATE_2, &MAP_TEMPLATE_3, &MAP_TEMPLATE_4, &MAP_TEMPLATE_5,
+                &MAP_TEMPLATE_6, &MAP_TEMPLATE_7, &MAP_TEMPLATE_8, &MAP_TEMPLATE_9, &MAP_TEMPLATE_10,
+                &MAP_TEMPLATE_11, &MAP_TEMPLATE_12, &MAP_TEMPLATE_13, &MAP_TEMPLATE_14, &MAP_TEMPLATE_15,
+                &MAP_TEMPLATE_16, &MAP_TEMPLATE_17, &MAP_TEMPLATE_18, &MAP_TEMPLATE_19, &MAP_TEMPLATE_20,
+                &MAP_TEMPLATE_21, &MAP_TEMPLATE_22, &MAP_TEMPLATE_23, &MAP_TEMPLATE_24, &MAP_TEMPLATE_25,
+                &MAP_TEMPLATE_26, &MAP_TEMPLATE_27, &MAP_TEMPLATE_28, &MAP_TEMPLATE_29, &MAP_TEMPLATE_30};
+            for (const auto* m : maps) {
+                for (const char* row : *m) {
+                    for (int i = 0; i < Config::MAP_WIDTH; ++i) {
+                        if (row[i] == '\0') return false;
+                    }
+                    if (row[Config::MAP_WIDTH] != '\0') return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    static_assert(detail::allTemplatesValid(),
+        "All manual map templates must be exactly Config::MAP_WIDTH columns wide");
 }
 
 struct FloatingPopup {
