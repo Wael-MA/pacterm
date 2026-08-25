@@ -40,7 +40,7 @@ Each theme restyles menus, borders, the HUD, and Pac-Man. Themes are dual-color 
 ### Arch Linux (AUR)
 
 ```bash
-yay -S pacterm-bin
+yay -S pacterm
 ```
 
 ### From Source
