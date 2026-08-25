@@ -14,9 +14,9 @@
 #include <cmath>
 #include <csignal>
 #include <poll.h>
-
-bool GameEngine::signal_term_restored_ = false;
-struct termios GameEngine::signal_original_termios_{};
+#include <print>
+#include <utility>
+#include <flat_map>
 
 namespace {
     constexpr std::string_view kEnterAltScreen = "\033[?1049h\033[2J\033[H\033[?25l";
@@ -26,7 +26,7 @@ namespace {
     constexpr std::array<const char*, 6> kGlitchWallGlyphs  = {"┼", "╣", "┬", "╪", "╬", "┚"};
     constexpr std::array<const char*, 4> kGlitchBlockGlyphs = {"█", "▓", "▞", "▦"};
     constexpr std::array<const char*, 4> kGlitchAsciiGlyphs = {"§", "¶", "Ø", "‡"};
-    constexpr std::array<std::string_view, 10> kThemeNames  = {"Classic", "Cyan", "Green", "Pink", "Red", "Violet", "Ice", "Amber", "Rainbow", "PacTerm+"};
+    constexpr std::array<std::string_view, 11> kThemeNames  = {"Classic", "Cyan", "Green", "Pink", "Red", "Violet", "Ice", "Amber", "Rainbow", "Glitch", "PacTerm+"};
 
     Color glitchRGB(uint64_t now) {
         const uint8_t r = (now / 100 % 2 == 0) ? 255 : 50;
@@ -155,7 +155,7 @@ static size_t utf8SeqLength(unsigned char c) noexcept {
 }
 
 // Decode the UTF-8 codepoint starting at text[i] (len bytes).
-static uint32_t decodeUTF8(const std::string& text, size_t i, size_t len) noexcept {
+static uint32_t decodeUTF8(std::string_view text, size_t i, size_t len) noexcept {
     const unsigned char* p = reinterpret_cast<const unsigned char*>(text.data()) + i;
     switch (len) {
     case 1: return p[0];
@@ -184,7 +184,7 @@ static size_t codepointWidth(uint32_t cp) noexcept {
         return 2;
 
     // East Asian "Wide" symbols inside the else single-column Misc-Symbols and
-    // Dingbats blocks (matches glibc wcwidth on a UTF-8 locale, e.g. ⚡).
+    // Dingbats blocks (matches glibc wcwidth on a UTF-8 locale, e.g. U+26A1).
     if ((cp >= 0x231A && cp <= 0x231B) || (cp >= 0x23E9 && cp <= 0x23EC) || cp == 0x23F0 || cp == 0x23F3 || (cp >= 0x25FD && cp <= 0x25FE) ||
         (cp >= 0x2614 && cp <= 0x2615) || (cp >= 0x2630 && cp <= 0x2637) || (cp >= 0x2648 && cp <= 0x2653) || cp == 0x267F || (cp >= 0x268A && cp <= 0x268F) ||
         cp == 0x2693 || cp == 0x26A1 || (cp >= 0x26AA && cp <= 0x26AB) || (cp >= 0x26BD && cp <= 0x26BE) || (cp >= 0x26C4 && cp <= 0x26C5) || cp == 0x26CE ||
@@ -197,10 +197,10 @@ static size_t codepointWidth(uint32_t cp) noexcept {
 }
 
 // Display width of the UTF-8 sequence beginning at text[i]. A trailing
-// variation selector (U+FE0F) is consumed with its base so "❄️" is treated as
-// one two-column glyph instead of "1 + zero-width". Sets *consumed to the
-// number of bytes the glyph unit occupies.
-static size_t seqWidth(const std::string& text, size_t i, size_t* consumed) noexcept {
+// variation selector (U+FE0F) is consumed with its base so sequences like U+2744+VS16
+// are treated as one two-column glyph instead of "1 + zero-width". Sets *consumed to
+// the number of bytes the glyph unit occupies.
+static size_t seqWidth(std::string_view text, size_t i, size_t* consumed) noexcept {
     size_t len = utf8SeqLength(static_cast<unsigned char>(text[i]));
     if (i + len > text.size())
         len = text.size() - i;
@@ -216,62 +216,90 @@ static size_t seqWidth(const std::string& text, size_t i, size_t* consumed) noex
     return codepointWidth(decodeUTF8(text, i, len));
 }
 
-void GameEngine::restoreTerminalForSignal() {
-    if (signal_term_restored_)
-        return;
-    signal_term_restored_ = true;
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &signal_original_termios_);
-    (void)::write(STDOUT_FILENO, kLeaveAltScreen.data(), kLeaveAltScreen.size());
+namespace {
+    class SignalManager {
+    public:
+        static inline std::atomic<bool> shutdown_requested{false};
+        static inline std::atomic<bool> window_resized{false};
+
+        static void install() noexcept {
+            struct sigaction sa{};
+            ::sigemptyset(&sa.sa_mask);
+            sa.sa_flags   = SA_RESTART;
+
+            sa.sa_handler = &SignalManager::handleTermination;
+            ::sigaction(SIGINT, &sa, nullptr);
+            ::sigaction(SIGTERM, &sa, nullptr);
+            ::sigaction(SIGQUIT, &sa, nullptr);
+
+            sa.sa_handler = &SignalManager::handleResize;
+            ::sigaction(SIGWINCH, &sa, nullptr);
+
+            sa.sa_handler = &SignalManager::handleCrash;
+            ::sigaction(SIGSEGV, &sa, nullptr);
+            ::sigaction(SIGABRT, &sa, nullptr);
+            ::sigaction(SIGBUS, &sa, nullptr);
+            ::sigaction(SIGFPE, &sa, nullptr);
+        }
+
+    private:
+        static void handleTermination(int) noexcept {
+            shutdown_requested.store(true, std::memory_order_relaxed);
+        }
+
+        static void handleResize(int) noexcept {
+            window_resized.store(true, std::memory_order_relaxed);
+        }
+
+        static void handleCrash(int) noexcept {
+            if (auto* inst = GameEngine::TerminalSession::instance()) {
+                inst->restore();
+            }
+            std::quick_exit(128);
+        }
+    };
+} // namespace
+
+GameEngine::TerminalSession*& GameEngine::TerminalSession::instance() noexcept {
+    static TerminalSession* s_inst = nullptr;
+    return s_inst;
 }
 
-void GameEngine::signalHandler(int sig) {
-    if (sig == SIGTSTP) {
-        restoreTerminalForSignal();
-        struct sigaction sa{};
-        sa.sa_handler = SIG_DFL;
-        sigemptyset(&sa.sa_mask);
-        sigaction(SIGTSTP, &sa, nullptr);
-        raise(SIGTSTP);
-        return;
-    }
-    restoreTerminalForSignal();
-    _exit(128 + sig);
-}
-
-void GameEngine::signalContHandler(int) {
-    if (tcgetattr(STDIN_FILENO, &signal_original_termios_) >= 0) {
-        struct termios raw = signal_original_termios_;
-        raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
-        raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-        raw.c_oflag &= ~(OPOST);
-        raw.c_cflag |= CS8;
+GameEngine::TerminalSession::TerminalSession() {
+    instance() = this;
+    if (::tcgetattr(STDIN_FILENO, &orig_termios) == 0) {
+        struct termios raw = orig_termios;
+        raw.c_lflag &= static_cast<unsigned int>(~(ECHO | ICANON | ISIG | IEXTEN));
+        raw.c_iflag &= static_cast<unsigned int>(~(BRKINT | ICRNL | INPCK | ISTRIP | IXON));
+        raw.c_oflag &= static_cast<unsigned int>(~(OPOST));
+        raw.c_cflag |= static_cast<unsigned int>(CS8);
         raw.c_cc[VMIN]  = 0;
         raw.c_cc[VTIME] = 0;
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+        if (::tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == 0) {
+            raw_active = true;
+        }
     }
     (void)::write(STDOUT_FILENO, kEnterAltScreen.data(), kEnterAltScreen.size());
     (void)::write(STDOUT_FILENO, kEnterMouse.data(), kEnterMouse.size());
-    signal_term_restored_ = false;
-    installSignals();
+    SignalManager::install();
 }
 
-void GameEngine::installSignals() {
-    struct sigaction sa{};
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags   = SA_RESTART;
-    sa.sa_handler = signalHandler;
-    sigaction(SIGINT, &sa, nullptr);
-    sigaction(SIGTERM, &sa, nullptr);
-    sigaction(SIGTSTP, &sa, nullptr);
-    sigaction(SIGSEGV, &sa, nullptr);
-    sigaction(SIGABRT, &sa, nullptr);
-    sigaction(SIGBUS, &sa, nullptr);
-    sigaction(SIGFPE, &sa, nullptr);
-    sa.sa_handler = signalContHandler;
-    sigaction(SIGCONT, &sa, nullptr);
+GameEngine::TerminalSession::~TerminalSession() noexcept {
+    restore();
+    if (instance() == this) {
+        instance() = nullptr;
+    }
 }
 
-static Direction bfsNextDirection(const Map& map, Vec2 start, Vec2 target, Direction forbidden_direction) {
+void GameEngine::TerminalSession::restore() noexcept {
+    if (raw_active) {
+        (void)::write(STDOUT_FILENO, kLeaveAltScreen.data(), kLeaveAltScreen.size());
+        (void)::tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
+        raw_active = false;
+    }
+}
+
+static Direction bfsNextDirection(const Map& map, Vec2 start, Vec2 target, Direction forbidden_direction) noexcept {
     if (start == target)
         return Direction::None;
 
@@ -282,18 +310,32 @@ static Direction bfsNextDirection(const Map& map, Vec2 start, Vec2 target, Direc
     std::array<QueueNode, Config::MAP_WIDTH * Config::MAP_HEIGHT> queue{};
     std::array<bool, Config::MAP_WIDTH * Config::MAP_HEIGHT> visited{};
 
-    auto inBounds   = [](Vec2 pos) { return pos.x >= 0 && pos.x < Config::MAP_WIDTH && pos.y >= 0 && pos.y < Config::MAP_HEIGHT; };
-    auto getVisited = [&](Vec2 pos) -> bool { return !inBounds(pos) || visited[pos.y * Config::MAP_WIDTH + pos.x]; };
-    auto setVisited = [&](Vec2 pos) {
+    auto inBounds = [](Vec2 pos) noexcept {
+        return pos.x >= 0 && pos.x < Config::MAP_WIDTH && pos.y >= 0 && pos.y < Config::MAP_HEIGHT;
+    };
+    auto getVisited = [&](Vec2 pos) noexcept -> bool {
+        return !inBounds(pos) || visited[pos.y * Config::MAP_WIDTH + pos.x];
+    };
+    auto setVisited = [&](Vec2 pos) noexcept {
         if (inBounds(pos)) {
             visited[pos.y * Config::MAP_WIDTH + pos.x] = true;
         }
     };
 
+    auto distSq = [](Vec2 a, Vec2 b) noexcept -> int {
+        int dx = a.x - b.x;
+        int dy = a.y - b.y;
+        return dx * dx + dy * dy;
+    };
+
+    int best_dist_sq    = std::numeric_limits<int>::max();
+    Direction best_step = Direction::None;
+    Direction fallback  = Direction::None;
+
     size_t head = 0;
     size_t tail = 0;
 
-    auto push = [&](Vec2 pos, Direction first) {
+    auto push = [&](Vec2 pos, Direction first) noexcept {
         if (tail < queue.size()) {
             queue[tail++] = QueueNode{pos, first};
         }
@@ -301,16 +343,25 @@ static Direction bfsNextDirection(const Map& map, Vec2 start, Vec2 target, Direc
 
     setVisited(start);
 
-    for (Direction d : {Direction::Up, Direction::Right, Direction::Down, Direction::Left}) {
+    for (Direction d : {Direction::Up, Direction::Left, Direction::Down, Direction::Right}) {
         if (d == forbidden_direction)
             continue;
         Vec2 next = map.wrapTunnel(start + directionToVec2(d));
-        if (getVisited(next))
+        if (getVisited(next) || !map.isWalkableByGhost(next))
             continue;
-        if (!map.isWalkableByGhost(next))
-            continue;
+
+        if (fallback == Direction::None)
+            fallback = d;
+
+        int d_sq = distSq(next, target);
+        if (d_sq < best_dist_sq) {
+            best_dist_sq = d_sq;
+            best_step    = d;
+        }
+
         if (next == target)
             return d;
+
         setVisited(next);
         push(next, d);
     }
@@ -318,20 +369,28 @@ static Direction bfsNextDirection(const Map& map, Vec2 start, Vec2 target, Direc
     while (head < tail) {
         QueueNode current = queue[head++];
 
-        for (Direction d : {Direction::Up, Direction::Right, Direction::Down, Direction::Left}) {
+        for (Direction d : {Direction::Up, Direction::Left, Direction::Down, Direction::Right}) {
             Vec2 next = map.wrapTunnel(current.pos + directionToVec2(d));
-            if (getVisited(next))
+            if (getVisited(next) || !map.isWalkableByGhost(next))
                 continue;
-            if (!map.isWalkableByGhost(next))
-                continue;
+
+            int d_sq = distSq(next, target);
+            if (d_sq < best_dist_sq) {
+                best_dist_sq = d_sq;
+                best_step    = current.firstStep;
+            }
+
             if (next == target)
                 return current.firstStep;
+
             setVisited(next);
             push(next, current.firstStep);
         }
     }
 
-    return Direction::None;
+    if (best_step != Direction::None)
+        return best_step;
+    return fallback;
 }
 
 struct ModeWave {
@@ -358,10 +417,7 @@ GameEngine::GameEngine()
     unsigned seed = static_cast<unsigned>(std::chrono::steady_clock::now().time_since_epoch().count());
     rng_.seed(seed);
 
-    enableRawMode();
-    installSignals();
-    (void)::write(STDOUT_FILENO, kEnterAltScreen.data(), kEnterAltScreen.size());
-    (void)::write(STDOUT_FILENO, kEnterMouse.data(), kEnterMouse.size());
+    SignalManager::install();
     queryTerminalSize();
     initRenderer();
     try {
@@ -376,10 +432,9 @@ GameEngine::GameEngine()
 }
 
 GameEngine::~GameEngine() {
-    (void)::write(STDOUT_FILENO, kLeaveAltScreen.data(), kLeaveAltScreen.size());
-    disableRawMode();
+    terminal_session_.restore();
 
-    std::string message = "Thanks for playing pacterm by Wael!";
+    std::string_view message = "Thanks for playing pacterm by Wael!";
     for (size_t i = 0; i < message.length(); ++i) {
         Color c;
         if (selected_general_theme_ == 0) {
@@ -392,33 +447,10 @@ GameEngine::~GameEngine() {
         } else {
             c = themePrimary(selected_general_theme_, static_cast<double>(i) * 0.15);
         }
-        std::printf("\033[38;2;%d;%d;%dm%c", c.r, c.g, c.b, message[i]);
+        std::print("\033[38;2;{};{};{}m{}", c.r, c.g, c.b, message[i]);
     }
-    std::printf("\033[0m\n");
+    std::println("\033[0m");
     std::fflush(stdout);
-}
-
-void GameEngine::enableRawMode() {
-    if (tcgetattr(STDIN_FILENO, &original_termios_) < 0)
-        return;
-    signal_original_termios_ = original_termios_;
-    struct termios raw       = original_termios_;
-    raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    raw.c_oflag &= ~(OPOST);
-    raw.c_cflag |= CS8;
-    raw.c_cc[VMIN]  = 0;
-    raw.c_cc[VTIME] = 0;
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) >= 0) {
-        raw_mode_enabled_ = true;
-    }
-}
-
-void GameEngine::disableRawMode() {
-    if (raw_mode_enabled_) {
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios_);
-        raw_mode_enabled_ = false;
-    }
 }
 
 void GameEngine::queryTerminalSize() {
@@ -431,71 +463,73 @@ void GameEngine::queryTerminalSize() {
 }
 
 int GameEngine::readKey() {
-    char c    = 0;
-    ssize_t n = ::read(STDIN_FILENO, &c, 1);
-    if (n <= 0)
-        return -1;
+    static char s_buf[256];
+    static size_t s_len = 0;
+    static size_t s_pos = 0;
 
-    if (c == 27) {
-        auto read_char_timeout = [](char& out_c, int timeout_ms) -> bool {
-            struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
-            int pr = ::poll(&pfd, 1, timeout_ms);
-            if (pr <= 0)
-                return false;
-            return ::read(STDIN_FILENO, &out_c, 1) > 0;
-        };
+    if (s_pos >= s_len) {
+        s_pos = 0;
+        s_len = 0;
+        ssize_t n = ::read(STDIN_FILENO, s_buf, sizeof(s_buf));
+        if (n <= 0) {
+            return -1;
+        }
+        s_len = static_cast<size_t>(n);
+    }
 
-        char seq[2];
-        if (!read_char_timeout(seq[0], 50))
+    char c = s_buf[s_pos++];
+    if (c == '\033') {
+        size_t rem = s_len - (s_pos - 1);
+        if (rem == 1) {
             return 27;
-        if (!read_char_timeout(seq[1], 50))
-            return 27;
-
-        if (seq[0] == '[') {
-            if (seq[1] == '<') {
-                std::string params;
-                params.reserve(32);
-                bool valid = false;
-                char term  = 0;
-                while (params.size() < 32) {
-                    char ch;
-                    if (!read_char_timeout(ch, 50))
-                        break;
-                    if (ch == 'M' || ch == 'm') {
-                        term  = ch;
-                        valid = true;
+        }
+        if (s_pos < s_len && s_buf[s_pos] == '[') {
+            if (s_pos + 1 < s_len && s_buf[s_pos + 1] == '<') {
+                size_t p = s_pos + 2;
+                bool found = false;
+                char term_ch = 0;
+                while (p < s_len && p - s_pos < 32) {
+                    if (s_buf[p] == 'M' || s_buf[p] == 'm') {
+                        term_ch = s_buf[p];
+                        found = true;
                         break;
                     }
-                    params += ch;
+                    ++p;
                 }
-                if (valid) {
+                if (found) {
                     int btn = 0, x = 0, y = 0;
+                    std::string params(&s_buf[s_pos + 2], p - (s_pos + 2));
+                    s_pos = p + 1;
                     if (std::sscanf(params.c_str(), "%d;%d;%d", &btn, &x, &y) >= 3) {
-                        mouse_button_ = btn;
-                        mouse_x_      = x - 1;
-                        mouse_y_      = y - 1;
-                        mouse_press_  = (term == 'M');
+                        mouse_button_       = btn;
+                        mouse_x_            = x - 1;
+                        mouse_y_            = y - 1;
+                        mouse_press_        = (term_ch == 'M');
+                        mouse_hover_active_ = true;
                         if (btn & 32) {
-                            mouse_hover_active_ = true;
                             return 1005;
                         }
                         if (mouse_press_)
                             return 1004;
                         return -1;
                     }
+                    return -1;
                 }
-                return -1;
-            }
-            switch (seq[1]) {
-            case 'A': return 1000;
-            case 'B': return 1001;
-            case 'C': return 1002;
-            case 'D': return 1003;
+            } else if (s_pos + 1 < s_len) {
+                char code = s_buf[s_pos + 1];
+                s_pos += 2;
+                switch (code) {
+                case 'A': return 1000;
+                case 'B': return 1001;
+                case 'C': return 1002;
+                case 'D': return 1003;
+                }
+                return 27;
             }
         }
         return 27;
     }
-    return c;
+    return static_cast<unsigned char>(c);
 }
 
 void GameEngine::handleInput(int key) {
@@ -853,20 +887,29 @@ void GameEngine::handleInput(int key) {
         if (action == GameAction::Pause || key == 27) {
             phase_ = GamePhase::Playing;
         } else if (action == GameAction::Up) {
-            pause_menu_selection_ = (pause_menu_selection_ - 1 + 4) % 4;
+            pause_menu_selection_ = (pause_menu_selection_ - 1 + 5) % 5;
         } else if (action == GameAction::Down) {
-            pause_menu_selection_ = (pause_menu_selection_ + 1) % 4;
+            pause_menu_selection_ = (pause_menu_selection_ + 1) % 5;
         } else if (key == '\n' || key == '\r' || key == ' ') {
             if (pause_menu_selection_ == 0) {
                 phase_ = GamePhase::Playing;
             } else if (pause_menu_selection_ == 1) {
+                pre_theme_info_phase_ = GamePhase::Paused;
+                phase_                = GamePhase::ThemeInfo;
+            } else if (pause_menu_selection_ == 2) {
                 startLevel(level_);
                 startGetReady();
-            } else if (pause_menu_selection_ == 2) {
-                phase_ = GamePhase::MainMenu;
             } else if (pause_menu_selection_ == 3) {
+                phase_ = GamePhase::MainMenu;
+            } else if (pause_menu_selection_ == 4) {
                 running_ = false;
             }
+        }
+        break;
+
+    case GamePhase::ThemeInfo:
+        if (key == 27 || key == '\n' || key == '\r' || key == ' ' || action == GameAction::Pause) {
+            phase_ = pre_theme_info_phase_;
         }
         break;
 
@@ -982,7 +1025,9 @@ void GameEngine::handleMouseClick() {
     int mx         = mouse_x_;
     int my         = mouse_y_;
 
-    auto hitText = [](int row, int col, const std::string& text, int my, int mx) -> bool { return my == row && mx >= col && mx < col + (int)text.size(); };
+    auto hitText = [this](int row, int col, std::string_view text, int my, int mx) noexcept -> bool {
+        return my == row && mx >= col && mx < col + static_cast<int>(displayWidth(text));
+    };
 
     switch (phase_) {
     case GamePhase::MainMenu: {
@@ -1007,6 +1052,7 @@ void GameEngine::handleMouseClick() {
                 case 0:
                     phase_               = GamePhase::LevelSelector;
                     level_select_cursor_ = 0;
+                    fade_animation_.fadeIn({255, 255, 255}, 300);
                     break;
                 case 1:
                     phase_          = GamePhase::UsernameInput;
@@ -1037,7 +1083,9 @@ void GameEngine::handleMouseClick() {
                     settings_selection_ = 0;
                     main_menu_message_  = "";
                     break;
-                case 6: running_ = false; break;
+                case 6:
+                    running_ = false;
+                    break;
                 }
                 return;
             }
@@ -1106,18 +1154,21 @@ void GameEngine::handleMouseClick() {
         break;
     }
     case GamePhase::Paused: {
-        std::array<std::string, 4> opts = {"  Resume Game", "  Restart Level", "  Return to Menu", "  Quit Game"};
+        std::array<std::string, 5> opts = {"  Resume Game", "  Theme Info & Guide", "  Restart Level", "  Return to Menu", "  Quit Game"};
         size_t max_w                    = 0;
         for (const auto& o : opts) {
             max_w = std::max(max_w, glyphCount(o));
         }
         int col_start = center_col - static_cast<int>(max_w / 2);
-        for (int i = 0; i < 4; ++i) {
-            int row = center_row - 1 + i;
+        for (int i = 0; i < 5; ++i) {
+            int row = center_row - 2 + i;
             if (hitText(row, col_start, opts[i], my, mx)) {
                 if (i == 0) {
                     phase_ = GamePhase::Playing;
                 } else if (i == 1) {
+                    pre_theme_info_phase_ = GamePhase::Paused;
+                    phase_                = GamePhase::ThemeInfo;
+                } else if (i == 2) {
                     map_.reset();
                     score_ = 0;
                     lives_ = Config::INITIAL_LIVES;
@@ -1127,7 +1178,7 @@ void GameEngine::handleMouseClick() {
                     particles_.clear();
                     startLevel(level_);
                     startGetReady();
-                } else if (i == 2) {
+                } else if (i == 3) {
                     startMainMenu();
                 } else {
                     running_ = false;
@@ -1136,6 +1187,10 @@ void GameEngine::handleMouseClick() {
             }
         }
         break;
+    }
+    case GamePhase::ThemeInfo: {
+        phase_ = pre_theme_info_phase_;
+        return;
     }
     case GamePhase::KeyConfig: {
         if (is_binding_)
@@ -1189,33 +1244,33 @@ void GameEngine::handleMouseClick() {
     }
 }
 
-bool GameEngine::isMouseHovering(int row, int col, const std::string& text) const {
+bool GameEngine::isMouseHovering(int row, int col, std::string_view text) const noexcept {
     if (!mouse_hover_active_)
         return false;
-    return mouse_y_ == row && mouse_x_ >= col && mouse_x_ < col + static_cast<int>(text.size());
+    return mouse_y_ == row && mouse_x_ >= col && mouse_x_ < col + static_cast<int>(displayWidth(text));
 }
 
 void GameEngine::run() {
     auto last_time = std::chrono::steady_clock::now();
 
     while (running_) {
+        if (SignalManager::shutdown_requested.load(std::memory_order_relaxed)) {
+            running_ = false;
+            break;
+        }
+
+        if (SignalManager::window_resized.exchange(false, std::memory_order_relaxed)) {
+            queryTerminalSize();
+            if (term_size_.x != render_width_ || term_size_.y != render_height_) {
+                initRenderer();
+            }
+        }
+
         auto now     = std::chrono::steady_clock::now();
         int delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
         last_time    = now;
         if (delta_ms > 50)
             delta_ms = 50;
-
-        struct winsize ws;
-        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) >= 0) {
-            if (ws.ws_col != render_width_ || ws.ws_row != render_height_) {
-                term_size_ = {ws.ws_col, ws.ws_row};
-                initRenderer();
-                ::write(STDOUT_FILENO, "\033[2J", 4);
-                front_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
-            }
-        }
-
-        mouse_hover_active_ = false;
 
         int key = readKey();
         while (key != -1) {
@@ -1308,6 +1363,35 @@ void GameEngine::update(int delta_ms) {
                 letter_score_mult_timer_ms_ = 0;
         }
 
+        updateBonusFruit(delta_ms);
+
+        if (fruit_magnet_timer_ms_ > 0) {
+            fruit_magnet_timer_ms_ -= delta_ms;
+            if (fruit_magnet_timer_ms_ < 0)
+                fruit_magnet_timer_ms_ = 0;
+            for (int dy = -2; dy <= 2; ++dy) {
+                for (int dx = -2; dx <= 2; ++dx) {
+                    int nx = pacman_.position.x + dx;
+                    int ny = pacman_.position.y + dy;
+                    if (nx >= 0 && nx < Config::MAP_WIDTH && ny >= 0 && ny < Config::MAP_HEIGHT) {
+                        Vec2 np{nx, ny};
+                        if (map_.getTile(np) == TileType::Dot) {
+                            map_.setTile(np, TileType::Empty);
+                            addScore(Config::SCORE_DOT);
+                            eatDot();
+                            spawnParticleBurst(np, {255, 200, 100});
+                        }
+                    }
+                }
+            }
+        }
+
+        if (fruit_double_bounty_timer_ms_ > 0) {
+            fruit_double_bounty_timer_ms_ -= delta_ms;
+            if (fruit_double_bounty_timer_ms_ < 0)
+                fruit_double_bounty_timer_ms_ = 0;
+        }
+
         if (letter_hunt_.active) {
             letter_hunt_.timer_ms -= delta_ms;
             if (letter_hunt_.timer_ms <= 0) {
@@ -1315,34 +1399,6 @@ void GameEngine::update(int delta_ms) {
                     map_.setTile(letter_hunt_.pos, TileType::Empty);
                 }
                 letter_hunt_.active = false;
-            }
-        }
-
-        if (special_item_active_) {
-            special_item_timer_ms_ -= delta_ms;
-            if (special_item_timer_ms_ <= 0) {
-                if (map_.getTile(special_item_pos_) == special_item_type_) {
-                    map_.setTile(special_item_pos_, TileType::Empty);
-                }
-                special_item_active_ = false;
-            }
-        } else {
-            cherry_spawn_timer_ms_ -= delta_ms;
-            if (cherry_spawn_timer_ms_ <= 0) {
-                cherry_spawn_timer_ms_ = 25000 + rng_() % 25000;
-                spawnSpecialItem(TileType::Cherry);
-            }
-
-            apple_spawn_timer_ms_ -= delta_ms;
-            if (apple_spawn_timer_ms_ <= 0) {
-                apple_spawn_timer_ms_ = 45000 + rng_() % 45000;
-                spawnSpecialItem(TileType::GoldenApple);
-            }
-
-            heart_spawn_timer_ms_ -= delta_ms;
-            if (heart_spawn_timer_ms_ <= 0) {
-                heart_spawn_timer_ms_ = 50000 + rng_() % 50000;
-                spawnSpecialItem(TileType::Heart);
             }
         }
 
@@ -1539,7 +1595,7 @@ void GameEngine::update(int delta_ms) {
         } else if (hasPowerup(PowerupKind::PacSpeed)) {
             pac_interval = static_cast<int>(Config::PAC_MOVE_INTERVAL * 85 / 100);
         }
-        pac_move_accumulator_ += delta_ms;
+        pac_move_accumulator_ = std::min(pac_move_accumulator_ + delta_ms, pac_interval * 2);
         while (pac_move_accumulator_ >= pac_interval) {
             pac_move_accumulator_ -= pac_interval;
             pacman_.tryMove(map_);
@@ -1591,7 +1647,7 @@ void GameEngine::update(int delta_ms) {
                 interval = static_cast<int>(interval * 118 / 100);
             }
 
-            ghost_accumulators_[i] += delta_ms;
+            ghost_accumulators_[i] = std::min(ghost_accumulators_[i] + delta_ms, interval * 2);
             while (ghost_accumulators_[i] >= interval) {
                 ghost_accumulators_[i] -= interval;
                 moveGhost(g);
@@ -1671,6 +1727,7 @@ void GameEngine::update(int delta_ms) {
     case GamePhase::DevPasswordInput: break;
 
     case GamePhase::KeyConfig: break;
+    case GamePhase::ThemeInfo: break;
     }
     if (click_feedback_timer_ms_ > 0) {
         click_feedback_timer_ms_ -= delta_ms;
@@ -1869,14 +1926,11 @@ void GameEngine::checkCollisions() {
             addScore(Config::SCORE_POWER_PELLET);
         }
         eatPowerPellet();
-    } else if (tile == TileType::Cherry) {
+    } else if (tile == TileType::Cherry || tile == TileType::Strawberry || tile == TileType::Orange ||
+               tile == TileType::Apple || tile == TileType::Melon || tile == TileType::Galaxian ||
+               tile == TileType::Bell || tile == TileType::Key) {
         map_.setTile(pacman_.position, TileType::Empty);
-        addScore(100);
-        speed_boost_timer_ms_ = 5000;
-        spawnScorePopup(pacman_.position, 100, {255, 100, 100});
-        spawnParticleBurst(pacman_.position, {255, 50, 50});
-        playSound("sounds/eat_pellet.wav");
-        special_item_active_ = false;
+        eatBonusFruit(tile);
     } else if (tile == TileType::GoldenApple) {
         map_.setTile(pacman_.position, TileType::Empty);
         addScore(1000);
@@ -1884,7 +1938,6 @@ void GameEngine::checkCollisions() {
         spawnScorePopup(pacman_.position, 1000, {255, 215, 0});
         spawnParticleBurst(pacman_.position, {255, 215, 0});
         playSound("sounds/eat_pellet.wav");
-        special_item_active_ = false;
     } else if (tile == TileType::Heart) {
         map_.setTile(pacman_.position, TileType::Empty);
         if (lives_ < 66) {
@@ -1893,11 +1946,15 @@ void GameEngine::checkCollisions() {
         spawnScorePopup(pacman_.position, 100, {255, 105, 180});
         spawnParticleBurst(pacman_.position, {255, 105, 180});
         playSound("sounds/eat_pellet.wav");
-        special_item_active_ = false;
     } else if (tile >= TileType::LetterP && tile <= TileType::LetterM) {
         map_.setTile(pacman_.position, TileType::Empty);
-        int letter_idx = static_cast<int>(tile) - static_cast<int>(TileType::LetterP);
+        int letter_idx = std::to_underlying(tile) - std::to_underlying(TileType::LetterP);
         collectLetter(letter_idx, pacman_.position);
+    }
+
+    if (bonus_fruit_active_ && bonus_fruit_pos_ == pacman_.position) {
+        eatBonusFruit(bonus_fruit_type_);
+        bonus_fruit_active_ = false;
     }
 
     for (auto& g : ghosts_) {
@@ -1905,6 +1962,15 @@ void GameEngine::checkCollisions() {
             if (g.mode == GhostMode::Frightened) {
                 eatGhost(g);
             } else if (g.mode == GhostMode::Chase || g.mode == GhostMode::Scatter) {
+                if (fruit_shield_active_) {
+                    fruit_shield_active_ = false;
+                    spawnScorePopup(pacman_.position, 0, {100, 255, 100});
+                    spawnParticleBurst(pacman_.position, {100, 255, 100});
+                    playSound("sounds/eat_ghost.wav");
+                    g.position = Config::GHOST_HOUSE_CENTER;
+                    g.mode     = GhostMode::InHouse;
+                    break;
+                }
                 if (!immortal_) {
                     pacmanCaught();
                     return;
@@ -1929,6 +1995,10 @@ void GameEngine::eatDot() {
         if (g.mode == GhostMode::InHouse) {
             g.dotCounter++;
         }
+    }
+    int dots_left = map_.remainingDots();
+    if (dots_left == 170 || dots_left == 70) {
+        spawnBonusFruit();
     }
     playSound("sounds/eat_dot.wav");
 }
@@ -1987,6 +2057,7 @@ void GameEngine::startGetReady() {
     phase_timer_ms_ = Config::GETREADY_DURATION;
 
     pacman_.reset();
+    pacman_.position = map_.findNearestWalkable(pacman_.position);
     for (auto& g : ghosts_) {
         g.reset();
     }
@@ -2063,6 +2134,7 @@ void GameEngine::initRenderer() {
     render_height_ = term_size_.y;
     front_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
     back_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
+    (void)::write(STDOUT_FILENO, "\033[2J\033[H\033[?25l", 14);
 }
 
 void GameEngine::setCell(int row, int col, const Cell& cell) {
@@ -2105,7 +2177,7 @@ size_t GameEngine::utf8SequenceLength(unsigned char c) noexcept {
     return 1;
 }
 
-size_t GameEngine::glyphCount(const std::string& text) const noexcept {
+size_t GameEngine::glyphCount(std::string_view text) const noexcept {
     size_t count = 0;
     for (size_t i = 0; i < text.size();) {
         i += utf8SequenceLength(static_cast<unsigned char>(text[i]));
@@ -2116,7 +2188,7 @@ size_t GameEngine::glyphCount(const std::string& text) const noexcept {
 
 // Terminal display width of the text, matching how the terminal lays out each
 // UTF-8 glyph (emoji, CJK, etc. occupy two columns; VS16 pairs count as one).
-size_t GameEngine::displayWidth(const std::string& text) const noexcept {
+size_t GameEngine::displayWidth(std::string_view text) const noexcept {
     size_t w = 0;
     for (size_t i = 0; i < text.size();) {
         size_t consumed = 0;
@@ -2126,7 +2198,7 @@ size_t GameEngine::displayWidth(const std::string& text) const noexcept {
     return w;
 }
 
-void GameEngine::drawString(int row, int col, const std::string& text, Color fg, Color bg, bool bold) {
+void GameEngine::drawString(int row, int col, std::string_view text, Color fg, Color bg, bool bold) {
     int current_col = col;
     for (size_t i = 0; i < text.size() && current_col < render_width_;) {
         size_t consumed = 0;
@@ -2135,7 +2207,7 @@ void GameEngine::drawString(int row, int col, const std::string& text, Color fg,
             consumed = text.size() - i;
 
         Cell cell;
-        cell.glyph.assign(text, i, consumed);
+        cell.glyph.assign(text.data() + i, consumed);
         cell.fg   = fg;
         cell.bg   = bg;
         cell.bold = bold;
@@ -2157,7 +2229,7 @@ void GameEngine::drawString(int row, int col, const std::string& text, Color fg,
     }
 }
 
-void GameEngine::drawGradientString(int row, int col, const std::string& text, Color start_fg, Color end_fg, Color bg) {
+void GameEngine::drawGradientString(int row, int col, std::string_view text, Color start_fg, Color end_fg, Color bg) {
     size_t glyph_count = 0;
     for (size_t i = 0; i < text.size();) {
         size_t consumed = 0;
@@ -2178,7 +2250,7 @@ void GameEngine::drawGradientString(int row, int col, const std::string& text, C
 
         double ratio = glyph_count > 1 ? static_cast<double>(idx) / (glyph_count - 1) : 0.0;
         Cell cell;
-        cell.glyph.assign(text, i, consumed);
+        cell.glyph.assign(text.data() + i, consumed);
         cell.fg = {
             static_cast<uint8_t>(start_fg.r + ratio * (end_fg.r - start_fg.r)),
             static_cast<uint8_t>(start_fg.g + ratio * (end_fg.g - start_fg.g)),
@@ -2254,33 +2326,46 @@ void GameEngine::presentFrame() {
     };
 
     auto appendStyle = [&](const Color& fg, const Color& bg, bool bold, bool blink) {
-        output_batch_ += "\033[0m";
+        if (!style_initialized || (current_bold && !bold) || (current_blink && !blink)) {
+            output_batch_ += "\033[0m";
+            current_fg        = {0, 0, 0};
+            current_bg        = {0, 0, 0};
+            current_bold      = false;
+            current_blink     = false;
+            style_initialized = false;
+        }
 
-        output_batch_ += "\033[38;2;";
-        appendInt(fg.r);
-        output_batch_ += ';';
-        appendInt(fg.g);
-        output_batch_ += ';';
-        appendInt(fg.b);
-        output_batch_ += 'm';
+        if (!style_initialized || fg != current_fg) {
+            output_batch_ += "\033[38;2;";
+            appendInt(fg.r);
+            output_batch_ += ';';
+            appendInt(fg.g);
+            output_batch_ += ';';
+            appendInt(fg.b);
+            output_batch_ += 'm';
+            current_fg = fg;
+        }
 
-        output_batch_ += "\033[48;2;";
-        appendInt(bg.r);
-        output_batch_ += ';';
-        appendInt(bg.g);
-        output_batch_ += ';';
-        appendInt(bg.b);
-        output_batch_ += 'm';
+        if (!style_initialized || bg != current_bg) {
+            output_batch_ += "\033[48;2;";
+            appendInt(bg.r);
+            output_batch_ += ';';
+            appendInt(bg.g);
+            output_batch_ += ';';
+            appendInt(bg.b);
+            output_batch_ += 'm';
+            current_bg = bg;
+        }
 
-        if (bold)
+        if (bold && !current_bold) {
             output_batch_ += "\033[1m";
-        if (blink)
+            current_bold = true;
+        }
+        if (blink && !current_blink) {
             output_batch_ += "\033[5m";
+            current_blink = true;
+        }
 
-        current_fg        = fg;
-        current_bg        = bg;
-        current_bold      = bold;
-        current_blink     = blink;
         style_initialized = true;
     };
 
@@ -2388,6 +2473,12 @@ void GameEngine::render() {
         apply_menu_theme_ = false;
         break;
 
+    case GamePhase::ThemeInfo:
+        apply_menu_theme_ = true;
+        renderThemeInfo();
+        apply_menu_theme_ = false;
+        break;
+
     case GamePhase::Screensaver: renderScreensaver(); break;
 
     case GamePhase::GetReady: {
@@ -2425,17 +2516,20 @@ void GameEngine::render() {
             int center_col    = render_width_ / 2;
             apply_menu_theme_ = true;
 
-            drawTitleBorderBox(center_row - 4, center_col - 15, 31, 8, " GAME PAUSED ", {0, 255, 255}, {0, 0, 0});
+            drawTitleBorderBox(center_row - 4, center_col - 15, 31, 9, " GAME PAUSED ", {0, 255, 255}, {255, 255, 0}, {0, 0, 0});
 
-            std::array<std::string, 4> options = {"Resume Game", "Restart Level", "Return to Menu", "Quit Game"};
+            std::array<std::string, 5> options = {"Resume Game", "Theme Info & Guide", "Restart Level", "Return to Menu", "Quit Game"};
 
             int block_left = center_col - 12;
 
-            for (int i = 0; i < 4; ++i) {
-                Color fg           = {255, 255, 255};
+            for (int i = 0; i < 5; ++i) {
+                Color fg           = {220, 220, 220};
                 std::string prefix = "  ";
                 bool bold          = false;
-                if (i == pause_menu_selection_) {
+                bool is_selected   = (i == pause_menu_selection_);
+                bool is_hovered    = isMouseHovering(center_row - 2 + i, block_left, "  " + options[i]);
+
+                if (is_selected) {
                     if (click_feedback_timer_ms_ > 0) {
                         fg   = {255, 255, 255};
                         bold = true;
@@ -2443,11 +2537,14 @@ void GameEngine::render() {
                         fg = {255, 255, 0};
                     }
                     prefix = "> ";
+                } else if (is_hovered) {
+                    fg     = {0, 255, 255};
+                    prefix = "> ";
+                    bold   = true;
                 }
-                if (isMouseHovering(center_row - 2 + i, block_left, prefix + options[i])) {
-                    fg.r = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.r) + 50));
-                    fg.g = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.g) + 50));
-                    fg.b = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.b) + 50));
+
+                if (is_selected && is_hovered) {
+                    fg   = {255, 255, 120};
                     bold = true;
                 }
                 drawString(center_row - 2 + i, block_left, prefix + options[i], fg, {0, 0, 0}, bold);
@@ -2493,30 +2590,28 @@ GameEngine::Viewport GameEngine::getViewport() const {
         vp.is_scrolling = false;
     } else {
         vp.is_scrolling = true;
-        vp.visible_rows = std::max(5, render_height_ - 2);
-        vp.visible_cols = std::max(5, render_width_ / Config::TILE_RENDER_W);
+        vp.visible_rows = std::min(Config::MAP_HEIGHT, std::max(1, render_height_ - 2));
+        vp.visible_cols = std::min(Config::MAP_WIDTH, std::max(1, render_width_ / Config::TILE_RENDER_W));
 
         vp.start_y = pacman_.position.y - vp.visible_rows / 2;
         vp.start_x = pacman_.position.x - vp.visible_cols / 2;
 
-        if (vp.start_y < 0)
-            vp.start_y = 0;
         if (vp.start_y + vp.visible_rows > Config::MAP_HEIGHT) {
             vp.start_y = Config::MAP_HEIGHT - vp.visible_rows;
         }
-        if (vp.start_y < 0)
+        if (vp.start_y < 0) {
             vp.start_y = 0;
+        }
 
-        if (vp.start_x < 0)
-            vp.start_x = 0;
         if (vp.start_x + vp.visible_cols > Config::MAP_WIDTH) {
             vp.start_x = Config::MAP_WIDTH - vp.visible_cols;
         }
-        if (vp.start_x < 0)
+        if (vp.start_x < 0) {
             vp.start_x = 0;
+        }
 
-        vp.base_row = 1;
-        vp.base_col = (render_width_ - vp.visible_cols * Config::TILE_RENDER_W) / 2;
+        vp.base_row = std::max(0, (render_height_ - vp.visible_rows) / 2);
+        vp.base_col = std::max(0, (render_width_ - vp.visible_cols * Config::TILE_RENDER_W) / 2);
     }
     return vp;
 }
@@ -2636,15 +2731,17 @@ void GameEngine::renderMap(const Viewport* vpp) {
                     } else if (level_ >= 5 && level_ <= 8) {
                         wall_color = Color{0, wb, wg};
                     } else if (level_ >= 9 && level_ <= 12) {
-                        wall_color = Color{wb, 0, wg};
+                        wall_color = Color{0, wb, static_cast<uint8_t>(wg / 2)};
                     } else if (level_ >= 13 && level_ <= 16) {
-                        wall_color = Color{wb, wg, 0};
+                        wall_color = Color{wb, 50, static_cast<uint8_t>(wg + 50)};
+                    } else if (level_ >= 17 && level_ <= 19) {
+                        wall_color = Color{wb, 40, 40};
                     } else if (level_ >= 21 && level_ <= 23) {
                         wall_color = Color{wg, 0, wb};
                     } else if (level_ >= 24 && level_ <= 26) {
                         wall_color = Color{0, static_cast<uint8_t>(235 - wg), 245};
                     } else if (level_ >= 27 && level_ <= 29) {
-                        wall_color = Color{wg, wb, 0};
+                        wall_color = Color{wb, wg, 20};
                     } else {
                         wall_color = Color{wb, wb, 0};
                     }
@@ -2675,13 +2772,13 @@ void GameEngine::renderMap(const Viewport* vpp) {
                 setCell(screen_row, screen_col, c1);
                 setCell(screen_row, screen_col + 1, c2);
             } else if (t == TileType::Cherry) {
-                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "🍒" : "c", Color{255, 0, 0});
+                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "󰄯" : "c", Color{255, 0, 0});
             } else if (t == TileType::GoldenApple) {
-                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "🍏" : "a", Color{255, 215, 0});
+                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "" : "a", Color{255, 215, 0});
             } else if (t == TileType::Heart) {
-                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "❤️" : "h", Color{255, 105, 180});
+                setTileGlyph(screen_row, screen_col, use_nerd_fonts_ ? "♥" : "h", Color{255, 105, 180});
             } else if (t >= TileType::LetterP && t <= TileType::LetterM) {
-                int letter_idx = static_cast<int>(t) - static_cast<int>(TileType::LetterP);
+                int letter_idx = std::to_underlying(t) - std::to_underlying(TileType::LetterP);
                 c1.glyph       = std::string(1, "PACTERM"[letter_idx]);
                 c2.glyph       = " ";
                 c1.fg          = Color{255, 215, 0};
@@ -2832,7 +2929,7 @@ void GameEngine::renderEntities(const Viewport* vpp) {
             int c = vp.base_col + vx * Config::TILE_RENDER_W;
 
             if (g.mode == GhostMode::Frightened) {
-                c1.glyph = use_nerd_fonts_ ? "ᗣ" : "M";
+                c1.glyph = use_nerd_fonts_ ? "󰊠" : "M";
                 c2.glyph = " ";
                 if (g.isFrightenedFlashing() && ((current_time_ms_ / 200) % 2 == 0)) {
                     c1.fg = {255, 255, 255};
@@ -2840,11 +2937,11 @@ void GameEngine::renderEntities(const Viewport* vpp) {
                     c1.fg = {33, 33, 255};
                 }
             } else if (g.mode == GhostMode::Eaten) {
-                c1.glyph = "o";
-                c2.glyph = "o";
+                c1.glyph = use_nerd_fonts_ ? "󰈈" : "\"";
+                c2.glyph = " ";
                 c1.fg    = {255, 255, 255};
             } else {
-                c1.glyph = use_nerd_fonts_ ? "ᗣ" : "M";
+                c1.glyph = use_nerd_fonts_ ? "󰊠" : "M";
                 c2.glyph = " ";
                 switch (g.personality) {
                 case GhostPersonality::Blinky: c1.fg = {255, 0, 0}; break;
@@ -2855,6 +2952,33 @@ void GameEngine::renderEntities(const Viewport* vpp) {
             }
             setCell(r, c, c1);
             setCell(r, c + 1, c2);
+        }
+    }
+
+    if (bonus_fruit_active_) {
+        int vx = bonus_fruit_pos_.x - vp.start_x;
+        int vy = bonus_fruit_pos_.y - vp.start_y;
+
+        if (vx >= 0 && vx < vp.visible_cols && vy >= 0 && vy < vp.visible_rows) {
+            bool blink = (bonus_fruit_timer_ms_ < 3000 && (bonus_fruit_timer_ms_ / 200) % 2 == 1);
+            if (!blink) {
+                std::string glyph = "c";
+                Color fg          = {255, 60, 60};
+                switch (bonus_fruit_type_) {
+                case TileType::Cherry: glyph = use_nerd_fonts_ ? "󰄯" : "c"; fg = {255, 60, 60}; break;
+                case TileType::Strawberry: glyph = use_nerd_fonts_ ? "󰄯" : "s"; fg = {255, 105, 180}; break;
+                case TileType::Orange: glyph = use_nerd_fonts_ ? "" : "o"; fg = {255, 165, 0}; break;
+                case TileType::Apple: glyph = use_nerd_fonts_ ? "" : "a"; fg = {100, 255, 100}; break;
+                case TileType::Melon: glyph = use_nerd_fonts_ ? "󱁕" : "m"; fg = {150, 255, 150}; break;
+                case TileType::Galaxian: glyph = use_nerd_fonts_ ? "󰛡" : "g"; fg = {0, 220, 255}; break;
+                case TileType::Bell: glyph = use_nerd_fonts_ ? "󰂚" : "b"; fg = {255, 215, 0}; break;
+                case TileType::Key: glyph = use_nerd_fonts_ ? "󰌌" : "k"; fg = {255, 230, 100}; break;
+                default: break;
+                }
+                int r = vp.base_row + vy;
+                int c = vp.base_col + vx * Config::TILE_RENDER_W;
+                setTileGlyph(r, c, glyph, fg);
+            }
         }
     }
 }
@@ -2884,26 +3008,33 @@ void GameEngine::renderHUD() {
     Color powerup_color     = {255, 255, 255};
     if (fever_active_ && fever_timer_ms_ > 0) {
         int sec       = (fever_timer_ms_ + 999) / 1000;
-        powerup_str   = "🔥 FEVER x2: " + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "󰈸 FEVER x2: " : "FEVER x2: ") + std::to_string(sec) + "s";
         powerup_color = {255, 0, 255};
     } else if (letter_score_mult_timer_ms_ > 0) {
         int sec       = (letter_score_mult_timer_ms_ + 999) / 1000;
-        powerup_str   = "★ x2 SCORE: " + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "★ x2 SCORE: " : "* x2 SCORE: ") + std::to_string(sec) + "s";
         powerup_color = {255, 215, 0};
     } else if (speed_boost_timer_ms_ > 0 || pac_speed_timer_ms_ > 0) {
         int sec       = (std::max(speed_boost_timer_ms_, pac_speed_timer_ms_) + 999) / 1000;
-        powerup_str   = "⚡ SPEED: " + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "󱐋 SPEED: " : ">> SPEED: ") + std::to_string(sec) + "s";
         powerup_color = {255, 215, 0};
     } else if (ice_freeze_timer_ms_ > 0 || ghost_freeze_timer_ms_ > 0) {
         int sec       = (std::max(ice_freeze_timer_ms_, ghost_freeze_timer_ms_) + 999) / 1000;
-        powerup_str   = "❄️ FREEZE: " + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "󰜗 FREEZE: " : "|| FREEZE: ") + std::to_string(sec) + "s";
         powerup_color = {100, 255, 255};
+    } else if (fruit_magnet_timer_ms_ > 0) {
+        int sec       = (fruit_magnet_timer_ms_ + 999) / 1000;
+        powerup_str   = (use_nerd_fonts_ ? "󰛡 MAGNET: " : "U MAGNET: ") + std::to_string(sec) + "s";
+        powerup_color = {255, 165, 0};
+    } else if (fruit_shield_active_) {
+        powerup_str   = use_nerd_fonts_ ? "󰞍 SHIELD ACTIVE" : "[SHIELD ACTIVE]";
+        powerup_color = {100, 255, 100};
+    } else if (fruit_double_bounty_timer_ms_ > 0) {
+        int sec       = (fruit_double_bounty_timer_ms_ + 999) / 1000;
+        powerup_str   = (use_nerd_fonts_ ? "󰄯 2x BOUNTY: " : "$ 2x BOUNTY: ") + std::to_string(sec) + "s";
+        powerup_color = {150, 255, 150};
     }
     if (!powerup_str.empty()) {
-        // Center with terminal display width, not byte length. Wide emoji
-        // occupy two columns (their continuation cells are covered by the
-        // glyph itself), so displayWidth keeps the string centered and away
-        // from the HIGH score instead of overrunning into it.
         const int w       = static_cast<int>(displayWidth(powerup_str));
         int start_col     = center_col - w / 2;
         const int max_col = render_width_ - static_cast<int>(high_str.size()) - 2 - w;
@@ -3016,10 +3147,13 @@ void GameEngine::renderMainMenu() {
         int block_left = center_col - static_cast<int>(max_w / 2);
 
         for (int i = 0; i < 7; ++i) {
-            Color fg           = {255, 255, 255};
+            Color fg           = {220, 220, 220};
             std::string prefix = "  ";
             bool bold          = false;
-            if (i == main_menu_selection_) {
+            bool is_selected   = (i == main_menu_selection_);
+            bool is_hovered    = isMouseHovering(center_row - 2 + i, block_left, "  " + main_options[i]);
+
+            if (is_selected) {
                 if (click_feedback_timer_ms_ > 0) {
                     fg   = {255, 255, 255};
                     bold = true;
@@ -3030,11 +3164,14 @@ void GameEngine::renderMainMenu() {
                     fg               = {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 0};
                 }
                 prefix = "> ";
+            } else if (is_hovered) {
+                fg     = {0, 255, 255};
+                prefix = "> ";
+                bold   = true;
             }
-            if (isMouseHovering(center_row - 2 + i, block_left, prefix + main_options[i])) {
-                fg.r = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.r) + 50));
-                fg.g = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.g) + 50));
-                fg.b = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.b) + 50));
+
+            if (is_selected && is_hovered) {
+                fg   = {255, 255, 120};
                 bold = true;
             }
             drawString(center_row - 2 + i, block_left, prefix + main_options[i], fg, {0, 0, 0}, bold);
@@ -3073,10 +3210,13 @@ void GameEngine::renderMainMenu() {
         int block_left = center_col - static_cast<int>(max_w / 2);
 
         for (int i = 0; i < 7; ++i) {
-            Color fg           = {255, 255, 255};
+            Color fg           = {220, 220, 220};
             std::string prefix = "  ";
             bool bold          = false;
-            if (i == main_menu_selection_) {
+            bool is_selected   = (i == main_menu_selection_);
+            bool is_hovered    = isMouseHovering(center_row - 2 + i, block_left, "  " + main_options[i]);
+
+            if (is_selected) {
                 if (click_feedback_timer_ms_ > 0) {
                     fg   = {255, 255, 255};
                     bold = true;
@@ -3087,18 +3227,21 @@ void GameEngine::renderMainMenu() {
                     fg               = {static_cast<uint8_t>(r), static_cast<uint8_t>(g), 0};
                 }
                 prefix = "> ";
+            } else if (is_hovered) {
+                fg     = {0, 255, 255};
+                prefix = "> ";
+                bold   = true;
             }
-            if (isMouseHovering(center_row - 2 + i, block_left, prefix + main_options[i])) {
-                fg.r = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.r) + 50));
-                fg.g = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.g) + 50));
-                fg.b = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.b) + 50));
+
+            if (is_selected && is_hovered) {
+                fg   = {255, 255, 120};
                 bold = true;
             }
             drawString(center_row - 2 + i, block_left, prefix + main_options[i], fg, {0, 0, 0}, bold);
         }
 
         if (!main_menu_message_.empty()) {
-            drawString(center_row + 5, center_col - main_menu_message_.length() / 2, main_menu_message_, {0, 255, 0});
+            drawString(center_row + 6, center_col - main_menu_message_.length() / 2, main_menu_message_, {0, 255, 0});
         }
 
         drawString(center_row + 7, center_col - 15, "Website: wael.work.gd/pacterm", {200, 200, 200});
@@ -3131,22 +3274,29 @@ void GameEngine::renderSettings() {
         int block_left = center_col - static_cast<int>(max_w / 2);
 
         for (int i = 0; i < 7; ++i) {
-            Color fg           = {255, 255, 255};
+            Color fg           = {220, 220, 220};
             std::string prefix = "  ";
             bool bold          = false;
-            if (i == settings_selection_) {
+            bool is_selected   = (i == settings_selection_);
+            bool is_hovered    = isMouseHovering(center_row - 3 + i, block_left, "  " + options[i]);
+
+            if (is_selected) {
                 fg     = {255, 200, 0};
                 prefix = "> ";
+            } else if (is_hovered) {
+                fg     = {0, 255, 255};
+                prefix = "> ";
+                bold   = true;
             }
+
+            if (is_selected && is_hovered) {
+                fg   = {255, 255, 120};
+                bold = true;
+            }
+
             std::string draw_text = prefix + options[i];
             if ((i == 0 && settings_selection_ == 0) || (i == 3 && settings_selection_ == 3)) {
                 draw_text = "> " + (i == 0 ? theme_text : pm_text) + " <";
-            }
-            if (isMouseHovering(center_row - 3 + i, block_left, draw_text)) {
-                fg.r = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.r) + 50));
-                fg.g = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.g) + 50));
-                fg.b = static_cast<uint8_t>(std::min(255, static_cast<int>(fg.b) + 50));
-                bold = true;
             }
             drawString(center_row - 3 + i, block_left, draw_text, fg, {0, 0, 0}, bold);
         }
@@ -3173,13 +3323,26 @@ void GameEngine::renderSettings() {
         int block_left = center_col - static_cast<int>(max_w / 2);
 
         for (int i = 0; i < 7; ++i) {
-            Color fg           = {255, 255, 255};
+            Color fg           = {220, 220, 220};
             std::string prefix = "  ";
-            if (i == settings_selection_) {
+            bool bold          = false;
+            bool is_selected   = (i == settings_selection_);
+            bool is_hovered    = isMouseHovering(center_row - 4 + i, block_left, "  " + options[i]);
+
+            if (is_selected) {
                 fg     = {255, 200, 0};
                 prefix = "> ";
+            } else if (is_hovered) {
+                fg     = {0, 255, 255};
+                prefix = "> ";
+                bold   = true;
             }
-            drawString(center_row - 4 + i, block_left, prefix + options[i], fg, {0, 0, 0}, false);
+
+            if (is_selected && is_hovered) {
+                fg   = {255, 255, 120};
+                bold = true;
+            }
+            drawString(center_row - 4 + i, block_left, prefix + options[i], fg, {0, 0, 0}, bold);
         }
 
         if (!main_menu_message_.empty()) {
@@ -3674,7 +3837,8 @@ Color GameEngine::themePrimary(int theme, double offset) const {
         double b = 50.0 + std::cos(phase + offset) * 40.0;
         return {255, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
     }
-    case 9: return {255, static_cast<uint8_t>(195.0 + std::sin(phase + offset) * 60.0), 0};
+    case 9: return glitchRGB(current_time_ms_ + static_cast<uint64_t>(offset * 400.0));
+    case 10: return {255, static_cast<uint8_t>(195.0 + std::sin(phase + offset) * 60.0), 0};
     default: return {255, 255, 255};
     }
 }
@@ -3717,7 +3881,11 @@ Color GameEngine::themeAccent(int theme, double offset) const {
         double b = 50.0 + std::cos(phase + offset) * 40.0;
         return {255, static_cast<uint8_t>(g), static_cast<uint8_t>(b)};
     }
-    case 9: return {0, static_cast<uint8_t>(207.0 + std::sin(phase + offset) * 47.0), static_cast<uint8_t>(227.0 + std::cos(phase + offset) * 27.0)};
+    case 9: {
+        const Color g = glitchRGB(current_time_ms_ + static_cast<uint64_t>(offset * 400.0));
+        return {g.b, g.r, g.g};
+    }
+    case 10: return {0, static_cast<uint8_t>(207.0 + std::sin(phase + offset) * 47.0), static_cast<uint8_t>(227.0 + std::cos(phase + offset) * 27.0)};
     default: return {255, 255, 255};
     }
 }
@@ -3735,8 +3903,9 @@ Color GameEngine::pacManColor(double offset) const {
     case 5: return {185, 100, 255};
     case 6: return {140, 230, 255};
     case 7: return {255, 190, 70};
-    case 8: return getRainbowColor(0.0);
-    default: return themePrimary(9, offset);
+    case 8: return getRainbowColor(offset);
+    case 9: return glitchRGB(current_time_ms_);
+    default: return themePrimary(Config::PACTERM_PLUS_THEME, offset);
     }
 }
 
@@ -3750,17 +3919,19 @@ Color GameEngine::tileAccentColor(int x, int y) const {
     if (level_ >= 1 && level_ <= 4)
         return {255, 183, 174};
     if (level_ >= 5 && level_ <= 8)
-        return {174, 255, 183};
+        return {174, 255, 255};
     if (level_ >= 9 && level_ <= 12)
-        return {255, 174, 255};
+        return {174, 255, 183};
     if (level_ >= 13 && level_ <= 16)
-        return {255, 183, 100};
+        return {255, 180, 220};
+    if (level_ >= 17 && level_ <= 19)
+        return {255, 150, 150};
     if (level_ >= 21 && level_ <= 23)
         return {215, 180, 255};
     if (level_ >= 24 && level_ <= 26)
         return {170, 235, 255};
     if (level_ >= 27 && level_ <= 29)
-        return {255, 200, 110};
+        return {255, 210, 120};
     return {255, 255, 150};
 }
 
@@ -3870,6 +4041,8 @@ bool GameEngine::isColorLocked(int color_idx) const {
     if (color_idx == 8)
         return !unlocked_rainbow_;
     if (color_idx == 9)
+        return (max_unlocked_level_ < 30);
+    if (color_idx == 10)
         return !pacterm_plus_unlocked_;
     return false;
 }
@@ -3907,17 +4080,17 @@ LevelTheme GameEngine::themeForLevel(int lvl) const {
 
 Color GameEngine::levelThemeColor(int lvl) const {
     if (lvl >= 1 && lvl <= 4)
-        return {0, 255, 255};
-    if (lvl >= 5 && lvl <= 8)
-        return {0, 255, 0};
-    if (lvl >= 9 && lvl <= 12)
-        return {255, 100, 255};
-    if (lvl >= 13 && lvl <= 16)
-        return {255, 100, 0};
-    if (lvl >= 17 && lvl <= 19)
         return {255, 255, 0};
-    if (lvl == 20 || lvl == 30)
+    if (lvl >= 5 && lvl <= 8)
+        return {0, 255, 255};
+    if (lvl >= 9 && lvl <= 12)
+        return {0, 255, 100};
+    if (lvl >= 13 && lvl <= 16)
+        return {255, 105, 180};
+    if (lvl >= 17 && lvl <= 19)
         return {255, 50, 50};
+    if (lvl == 20 || lvl == 30)
+        return {255, 0, 255};
     if (lvl >= 21 && lvl <= 23)
         return {200, 100, 255};
     if (lvl >= 24 && lvl <= 26)
@@ -3953,29 +4126,34 @@ void GameEngine::loadThemePowerups() {
 
 std::vector<Vec2> GameEngine::reachableTiles() const {
     std::vector<Vec2> out;
-    std::queue<Vec2> q;
-    std::vector<std::vector<bool>> visited(Config::MAP_HEIGHT, std::vector<bool>(Config::MAP_WIDTH, false));
-    Vec2 start = pacman_.position;
-    q.push(start);
+    out.reserve(Config::MAP_WIDTH * Config::MAP_HEIGHT / 2);
+
+    std::array<std::array<bool, Config::MAP_WIDTH>, Config::MAP_HEIGHT> visited{};
+    std::array<Vec2, Config::MAP_WIDTH * Config::MAP_HEIGHT> q{};
+
+    Vec2 start = map_.findNearestWalkable(pacman_.position);
     visited[start.y][start.x] = true;
-    while (!q.empty()) {
-        Vec2 curr = q.front();
-        q.pop();
+
+    size_t head = 0;
+    size_t tail = 0;
+    q[tail++]   = start;
+
+    while (head < tail) {
+        Vec2 curr = q[head++];
         bool inside_ghost_house = (curr.y >= 12 && curr.y <= 16 && curr.x >= 10 && curr.x <= 17);
         if (!inside_ghost_house && map_.isWalkable(curr)) {
             out.push_back(curr);
         }
+
         std::array<Vec2, 4> neighbors = {{{curr.x + 1, curr.y}, {curr.x - 1, curr.y}, {curr.x, curr.y + 1}, {curr.x, curr.y - 1}}};
         for (auto next : neighbors) {
-            if (next.x < 0)
-                next.x = Config::MAP_WIDTH - 1;
-            if (next.x >= Config::MAP_WIDTH)
-                next.x = 0;
-            if (next.y >= 0 && next.y < Config::MAP_HEIGHT && !visited[next.y][next.x]) {
-                TileType t = map_.getTile(next.x, next.y);
-                if (t != TileType::Wall && t != TileType::GhostDoor) {
-                    visited[next.y][next.x] = true;
-                    q.push(next);
+            Vec2 wrapped = map_.wrapTunnel(next);
+            if (wrapped.x >= 0 && wrapped.x < Config::MAP_WIDTH && wrapped.y >= 0 && wrapped.y < Config::MAP_HEIGHT) {
+                if (!visited[wrapped.y][wrapped.x] && map_.isWalkable(wrapped)) {
+                    visited[wrapped.y][wrapped.x] = true;
+                    if (tail < q.size()) {
+                        q[tail++] = wrapped;
+                    }
                 }
             }
         }
@@ -3986,12 +4164,13 @@ std::vector<Vec2> GameEngine::reachableTiles() const {
 void GameEngine::startLevel(int lvl) {
     level_ = lvl;
     map_.loadLevel(lvl);
+    pacman_.position = map_.findNearestWalkable(pacman_.position);
     loadThemePowerups();
 
-    special_item_active_   = false;
-    cherry_spawn_timer_ms_ = 15000 + rng_() % 15000;
-    apple_spawn_timer_ms_  = 30000 + rng_() % 30000;
-    heart_spawn_timer_ms_  = 25000 + rng_() % 35000;
+    bonus_fruit_active_           = false;
+    fruit_magnet_timer_ms_        = 0;
+    fruit_shield_active_          = false;
+    fruit_double_bounty_timer_ms_ = 0;
 
     popups_.clear();
     particles_.clear();
@@ -4061,58 +4240,6 @@ void GameEngine::startLevel(int lvl) {
     }
 }
 
-void GameEngine::spawnSpecialItem(TileType type) {
-    std::vector<Vec2> reachable_positions;
-    std::queue<Vec2> q;
-    std::vector<std::vector<bool>> visited(Config::MAP_HEIGHT, std::vector<bool>(Config::MAP_WIDTH, false));
-
-    Vec2 start_pos = {13, 23};
-    q.push(start_pos);
-    visited[start_pos.y][start_pos.x] = true;
-
-    while (!q.empty()) {
-        Vec2 curr = q.front();
-        q.pop();
-
-        bool inside_ghost_house = (curr.y >= 12 && curr.y <= 16 && curr.x >= 10 && curr.x <= 17);
-        if (!inside_ghost_house && map_.getTile(curr) == TileType::Empty) {
-            reachable_positions.push_back(curr);
-        }
-
-        std::array<Vec2, 4> neighbors = {{{curr.x + 1, curr.y}, {curr.x - 1, curr.y}, {curr.x, curr.y + 1}, {curr.x, curr.y - 1}}};
-
-        for (auto next : neighbors) {
-            if (next.x < 0)
-                next.x = Config::MAP_WIDTH - 1;
-            if (next.x >= Config::MAP_WIDTH)
-                next.x = 0;
-
-            if (next.y >= 0 && next.y < Config::MAP_HEIGHT) {
-                if (!visited[next.y][next.x]) {
-                    TileType t = map_.getTile(next.x, next.y);
-                    if (t != TileType::Wall && t != TileType::GhostDoor) {
-                        visited[next.y][next.x] = true;
-                        q.push(next);
-                    }
-                }
-            }
-        }
-    }
-
-    if (reachable_positions.empty())
-        return;
-
-    int idx  = rng_() % reachable_positions.size();
-    Vec2 pos = reachable_positions[idx];
-
-    map_.setTile(pos, type);
-
-    special_item_active_   = true;
-    special_item_pos_      = pos;
-    special_item_type_     = type;
-    special_item_timer_ms_ = 10000;
-}
-
 void GameEngine::spawnLetter() {
     if (letter_hunt_.allCollected() || letter_hunt_.active) {
         return;
@@ -4132,7 +4259,7 @@ void GameEngine::spawnLetter() {
     if (target < 0)
         return;
 
-    TileType type = static_cast<TileType>(static_cast<int>(TileType::LetterP) + target);
+    TileType type = static_cast<TileType>(std::to_underlying(TileType::LetterP) + target);
 
     std::vector<Vec2> reachable;
     std::vector<std::vector<bool>> visited(Config::MAP_HEIGHT, std::vector<bool>(Config::MAP_WIDTH, false));
@@ -4215,6 +4342,8 @@ double GameEngine::getActiveScoreMultiplier() const {
         mult *= Config::LETTER_SCORE_MULTIPLIER;
     if (fever_active_ && fever_timer_ms_ > 0)
         mult *= FeverState::MULTIPLIER;
+    if (fruit_double_bounty_timer_ms_ > 0)
+        mult *= 2.0;
     return mult;
 }
 
@@ -4239,7 +4368,7 @@ void GameEngine::spawnGhostTrail(Vec2 pos) {
         p.vy          = 0.0;
         p.color       = themeAccent(Config::PACTERM_PLUS_THEME, static_cast<double>(i) * 0.9);
         p.lifetime_ms = 140 + i * 90;
-        p.glyph       = use_nerd_fonts_ ? "✨" : "::";
+        p.glyph       = use_nerd_fonts_ ? "•" : "::";
         particles_.push_back(p);
     }
 }
@@ -4533,21 +4662,60 @@ void GameEngine::renderLevelSelector() {
 
             bool hovered = isMouseHovering(row, col - 4, label);
 
-            if (selected) {
+            if (lvl == 20) {
+                Color norm_c = selected ? (locked ? Color{180, 180, 180} : Color{255, 255, 255})
+                                        : (locked ? Color{60, 60, 60} : Color{255, 255, 0});
+                if (hovered && !selected) {
+                    norm_c = locked ? Color{140, 140, 140} : Color{0, 255, 255};
+                }
+                Color gl_c = glitchRGB(current_time_ms_);
+                const auto& g_glyphs = use_nerd_fonts_ ? kGlitchBlockGlyphs : kGlitchAsciiGlyphs;
+                std::string g_digit  = ((current_time_ms_ / 150) % 3 == 0) ? (locked ? "X" : "0") : g_glyphs[(current_time_ms_ / 100) % 4];
+                std::string g_brk    = ((current_time_ms_ / 200) % 4 == 0) ? "]" : g_glyphs[(current_time_ms_ / 100 + 1) % 4];
+                std::string pfx      = (selected || hovered) ? "> " : "  ";
+                std::string sfx      = (selected || hovered) ? " <" : "  ";
+                std::string d1       = locked ? "X" : "2";
+
+                drawString(row, col - 4, pfx, norm_c, {0, 0, 0}, selected || hovered);
+                drawString(row, col - 2, "[", norm_c, {0, 0, 0}, selected || hovered);
+                drawString(row, col - 1, d1, norm_c, {0, 0, 0}, selected || hovered);
+                drawString(row, col,     g_digit, gl_c, {0, 0, 0}, selected || hovered);
+                drawString(row, col + 1, g_brk, gl_c, {0, 0, 0}, selected || hovered);
+                drawString(row, col + 2, sfx, gl_c, {0, 0, 0}, selected || hovered);
+            } else if (lvl == 30) {
+                Color gl_c1 = glitchRGB(current_time_ms_);
+                Color gl_c2 = glitchRGB(current_time_ms_ + 60);
+                Color gl_c3 = glitchRGB(current_time_ms_ + 120);
+                Color gl_c4 = glitchRGB(current_time_ms_ + 180);
+                const auto& g_glyphs = use_nerd_fonts_ ? kGlitchBlockGlyphs : kGlitchAsciiGlyphs;
+
+                std::string g_brk1 = ((current_time_ms_ / 200) % 4 == 0) ? "[" : g_glyphs[(current_time_ms_ / 100) % 4];
+                std::string g_d1   = ((current_time_ms_ / 150) % 3 == 0) ? (locked ? "X" : "3") : g_glyphs[(current_time_ms_ / 100 + 1) % 4];
+                std::string g_d2   = ((current_time_ms_ / 150) % 3 == 0) ? (locked ? "X" : "0") : g_glyphs[(current_time_ms_ / 100 + 2) % 4];
+                std::string g_brk2 = ((current_time_ms_ / 200) % 4 == 0) ? "]" : g_glyphs[(current_time_ms_ / 100 + 3) % 4];
+
+                Color pfx_c = selected ? (locked ? Color{180, 180, 180} : Color{255, 255, 255})
+                                       : (hovered ? Color{0, 255, 255} : gl_c1);
+                std::string pfx = (selected || hovered) ? "> " : "  ";
+                std::string sfx = (selected || hovered) ? " <" : "  ";
+
+                drawString(row, col - 4, pfx, pfx_c, {0, 0, 0}, selected || hovered);
+                drawString(row, col - 2, g_brk1, gl_c1, {0, 0, 0}, selected || hovered);
+                drawString(row, col - 1, g_d1, gl_c2, {0, 0, 0}, selected || hovered);
+                drawString(row, col,     g_d2, gl_c3, {0, 0, 0}, selected || hovered);
+                drawString(row, col + 1, g_brk2, gl_c4, {0, 0, 0}, selected || hovered);
+                drawString(row, col + 2, sfx, pfx_c, {0, 0, 0}, selected || hovered);
+            } else if (selected) {
                 Color sel_color = locked ? Color{180, 180, 180} : Color{255, 255, 255};
                 if (hovered) {
-                    sel_color.r = static_cast<uint8_t>(std::min(255, static_cast<int>(sel_color.r) + 50));
-                    sel_color.g = static_cast<uint8_t>(std::min(255, static_cast<int>(sel_color.g) + 50));
-                    sel_color.b = static_cast<uint8_t>(std::min(255, static_cast<int>(sel_color.b) + 50));
-                    drawString(row, col - 4, label, sel_color, {0, 0, 0}, true);
-                } else {
-                    drawString(row, col - 4, label, sel_color);
+                    sel_color = {255, 255, 120};
                 }
+                drawString(row, col - 4, label, sel_color, {0, 0, 0}, true);
             } else if (hovered) {
-                theme_color.r = static_cast<uint8_t>(std::min(255, static_cast<int>(theme_color.r) + 50));
-                theme_color.g = static_cast<uint8_t>(std::min(255, static_cast<int>(theme_color.g) + 50));
-                theme_color.b = static_cast<uint8_t>(std::min(255, static_cast<int>(theme_color.b) + 50));
-                drawString(row, col - 4, label, theme_color, {0, 0, 0}, true);
+                Color hov_color = locked ? Color{140, 140, 140} : Color{0, 255, 255};
+                std::string num = (lvl < 10) ? "0" + std::to_string(lvl) : std::to_string(lvl);
+                std::string hov_label = locked ? "> [XX] <" : "> [" + num + "] <";
+                drawString(row, col - 4, hov_label, hov_color, {0, 0, 0}, true);
             } else {
                 drawString(row, col - 4, label, theme_color);
             }
@@ -4570,13 +4738,12 @@ void GameEngine::renderLevelSelector() {
         back_text  = "  [ BACK TO MENU ]  ";
         back_color = {150, 150, 150};
     }
-    if (isMouseHovering(row_back, center_col - static_cast<int>(back_text.length()) / 2, back_text)) {
-        back_color.r = static_cast<uint8_t>(std::min(255, static_cast<int>(back_color.r) + 50));
-        back_color.g = static_cast<uint8_t>(std::min(255, static_cast<int>(back_color.g) + 50));
-        back_color.b = static_cast<uint8_t>(std::min(255, static_cast<int>(back_color.b) + 50));
-        back_bold    = true;
+    if (isMouseHovering(row_back, center_col - static_cast<int>(back_text.length()) / 2, "  [ BACK TO MENU ]  ")) {
+        back_color = {0, 255, 255};
+        back_bold  = true;
+        back_text  = "> [ BACK TO MENU ] <";
     }
-    drawString(row_back, center_col - back_text.length() / 2, back_text, back_color, {0, 0, 0}, back_bold);
+    drawString(row_back, center_col - static_cast<int>(back_text.length()) / 2, back_text, back_color, {0, 0, 0}, back_bold);
 }
 
 void GameEngine::renderKeyConfig() {
@@ -4585,7 +4752,7 @@ void GameEngine::renderKeyConfig() {
 
     clearBuffer({0, 0, 0});
 
-    drawTitleBorderBox(center_row - 6, center_col - 20, 40, 11, " KEY CONFIGURATION ", {0, 255, 255}, {0, 0, 0});
+    drawTitleBorderBox(center_row - 6, center_col - 20, 40, 11, " KEY CONFIGURATION ", {0, 255, 255}, {255, 255, 0}, {0, 0, 0});
 
     std::string up_name   = is_binding_ ? (binding_action_ == GameAction::Up ? "PRESS KEY..." : getKeyName(custom_key_up_)) : getKeyName(custom_key_up_);
     std::string down_name = is_binding_ ? (binding_action_ == GameAction::Down ? "PRESS KEY..." : getKeyName(custom_key_down_)) : getKeyName(custom_key_down_);
@@ -4606,17 +4773,31 @@ void GameEngine::renderKeyConfig() {
     int block_left = center_col - static_cast<int>(max_w / 2);
 
     for (int i = 0; i < 6; ++i) {
-        Color fg           = {255, 255, 255};
+        Color fg           = {220, 220, 220};
         std::string prefix = "  ";
-        if (i == key_config_selection_) {
+        bool bold          = false;
+        bool is_selected   = (i == key_config_selection_);
+        bool is_hovered    = isMouseHovering(center_row - 4 + i, block_left, "  " + options[i]);
+
+        if (is_selected) {
             if (click_feedback_timer_ms_ > 0) {
-                fg = {255, 255, 255};
+                fg   = {255, 255, 255};
+                bold = true;
             } else {
                 fg = {255, 200, 0};
             }
             prefix = "> ";
+        } else if (is_hovered) {
+            fg     = {0, 255, 255};
+            prefix = "> ";
+            bold   = true;
         }
-        drawString(center_row - 4 + i, block_left, prefix + options[i], fg);
+
+        if (is_selected && is_hovered) {
+            fg   = {255, 255, 120};
+            bold = true;
+        }
+        drawString(center_row - 4 + i, block_left, prefix + options[i], fg, {0, 0, 0}, bold);
     }
 
     if (is_binding_) {
@@ -4656,8 +4837,8 @@ void GameEngine::drawDoubleBorderBox(int row, int col, int w, int h, Color fg, C
     menu_accent_ = false;
 }
 
-void GameEngine::drawTitleBorderBox(int row, int col, int w, int h, const std::string& title, Color fg, Color bg) {
-    drawBox(row, col, w, h, fg, bg);
+void GameEngine::drawTitleBorderBox(int row, int col, int w, int h, std::string_view title, Color border_fg, Color title_fg, Color bg) {
+    drawBox(row, col, w, h, border_fg, bg);
     menu_accent_ = true;
 
     std::string tl = use_nerd_fonts_ ? "╔" : "+";
@@ -4670,29 +4851,37 @@ void GameEngine::drawTitleBorderBox(int row, int col, int w, int h, const std::s
     int title_len = static_cast<int>(glyphCount(title));
     int side      = (w - 2 - title_len) / 2;
 
-    setCell(row, col, Cell{.glyph = tl, .fg = fg, .bg = bg});
+    setCell(row, col, Cell{.glyph = tl, .fg = border_fg, .bg = bg});
     int c = col + 1;
     for (int i = 0; i < side; ++i, ++c) {
-        setCell(row, c, Cell{.glyph = hz, .fg = fg, .bg = bg});
+        setCell(row, c, Cell{.glyph = hz, .fg = border_fg, .bg = bg});
     }
-    drawString(row, c, title, fg, bg);
+
+    menu_accent_ = false;
+    drawString(row, c, title, title_fg, bg, false);
+    menu_accent_ = true;
+
     c += title_len;
     for (int i = 0; i < w - 2 - side - title_len; ++i, ++c) {
-        setCell(row, c, Cell{.glyph = hz, .fg = fg, .bg = bg});
+        setCell(row, c, Cell{.glyph = hz, .fg = border_fg, .bg = bg});
     }
-    setCell(row, c, Cell{.glyph = tr, .fg = fg, .bg = bg});
+    setCell(row, col + w - 1, Cell{.glyph = tr, .fg = border_fg, .bg = bg});
 
     for (int r = row + 1; r < row + h - 1; ++r) {
-        setCell(r, col, Cell{.glyph = vt, .fg = fg, .bg = bg});
-        setCell(r, col + w - 1, Cell{.glyph = vt, .fg = fg, .bg = bg});
+        setCell(r, col, Cell{.glyph = vt, .fg = border_fg, .bg = bg});
+        setCell(r, col + w - 1, Cell{.glyph = vt, .fg = border_fg, .bg = bg});
     }
 
-    setCell(row + h - 1, col, Cell{.glyph = bl, .fg = fg, .bg = bg});
+    setCell(row + h - 1, col, Cell{.glyph = bl, .fg = border_fg, .bg = bg});
     for (int c2 = col + 1; c2 < col + w - 1; ++c2) {
-        setCell(row + h - 1, c2, Cell{.glyph = hz, .fg = fg, .bg = bg});
+        setCell(row + h - 1, c2, Cell{.glyph = hz, .fg = border_fg, .bg = bg});
     }
-    setCell(row + h - 1, col + w - 1, Cell{.glyph = br, .fg = fg, .bg = bg});
+    setCell(row + h - 1, col + w - 1, Cell{.glyph = br, .fg = border_fg, .bg = bg});
     menu_accent_ = false;
+}
+
+void GameEngine::drawTitleBorderBox(int row, int col, int w, int h, std::string_view title, Color fg) {
+    drawTitleBorderBox(row, col, w, h, title, fg, fg, {0, 0, 0});
 }
 
 void GameEngine::renderDevPasswordInput() {
@@ -4714,7 +4903,7 @@ void GameEngine::renderDevMenu() {
     int center_row = render_height_ / 2;
     int center_col = render_width_ / 2;
 
-    drawTitleBorderBox(center_row - 6, center_col - 22, 44, 13, " DEVELOPER MENU ", {255, 50, 50}, {0, 0, 0});
+    drawTitleBorderBox(center_row - 6, center_col - 22, 44, 13, " DEVELOPER MENU ", {255, 50, 50}, {255, 255, 0}, {0, 0, 0});
 
     std::string color_name{kThemeNames[selected_pacman_color_ % Config::THEME_COUNT]};
 
@@ -5020,4 +5209,201 @@ Color AnimationController::getCurrentColor() const {
     uint8_t g = static_cast<uint8_t>(start_color.g + t * (end_color.g - start_color.g));
     uint8_t b = static_cast<uint8_t>(start_color.b + t * (end_color.b - start_color.b));
     return {r, g, b};
+}
+
+void GameEngine::spawnBonusFruit() {
+    if (bonus_fruit_active_)
+        return;
+
+    std::vector<Vec2> tiles = reachableTiles();
+    std::vector<Vec2> valid_tiles;
+    valid_tiles.reserve(tiles.size());
+    for (const auto& pos : tiles) {
+        if (pos == pacman_.position)
+            continue;
+        if (pos.y == Config::TUNNEL_ROW && (pos.x < 3 || pos.x > Config::MAP_WIDTH - 4))
+            continue;
+        valid_tiles.push_back(pos);
+    }
+
+    if (valid_tiles.empty()) {
+        bonus_fruit_pos_ = {13, 17};
+    } else {
+        bonus_fruit_pos_ = valid_tiles[rng_() % valid_tiles.size()];
+    }
+
+    // Weighted Rarity Distribution:
+    // Common (40%): Cherry (20%), Strawberry (20%)
+    // Uncommon (30%): Orange (15%), Apple (15%)
+    // Rare (18%): Melon (9%), Galaxian (9%)
+    // Epic (9%): Bell (9%)
+    // Legendary (3%): Key (3%)
+    int roll            = rng_() % 100;
+    TileType fruit_type = TileType::Cherry;
+
+    if (roll < 20) {
+        fruit_type = TileType::Cherry;
+    } else if (roll < 40) {
+        fruit_type = TileType::Strawberry;
+    } else if (roll < 55) {
+        fruit_type = TileType::Orange;
+    } else if (roll < 70) {
+        fruit_type = TileType::Apple;
+    } else if (roll < 79) {
+        fruit_type = TileType::Melon;
+    } else if (roll < 88) {
+        fruit_type = TileType::Galaxian;
+    } else if (roll < 97) {
+        fruit_type = TileType::Bell;
+    } else {
+        fruit_type = TileType::Key;
+    }
+
+    bonus_fruit_active_   = true;
+    bonus_fruit_type_     = fruit_type;
+    bonus_fruit_timer_ms_ = 14000;
+}
+
+void GameEngine::updateBonusFruit(int delta_ms) {
+    if (!bonus_fruit_active_)
+        return;
+
+    bonus_fruit_timer_ms_ -= delta_ms;
+    if (bonus_fruit_timer_ms_ <= 0) {
+        bonus_fruit_active_ = false;
+        return;
+    }
+
+    if (bonus_fruit_pos_ == pacman_.position) {
+        eatBonusFruit(bonus_fruit_type_);
+        bonus_fruit_active_ = false;
+    }
+}
+
+void GameEngine::eatBonusFruit(TileType type) {
+    int points        = 100;
+    Color popup_color = {255, 100, 100};
+
+    switch (type) {
+    case TileType::Cherry:
+        points                = 100;
+        speed_boost_timer_ms_ = 6000;
+        popup_color           = {255, 60, 60};
+        break;
+    case TileType::Strawberry:
+        points                 = 300;
+        ghost_freeze_timer_ms_ = 4000;
+        popup_color            = {255, 105, 180};
+        break;
+    case TileType::Orange:
+        points                 = 500;
+        fruit_magnet_timer_ms_ = 6000;
+        popup_color            = {255, 165, 0};
+        break;
+    case TileType::Apple:
+        points               = 700;
+        fruit_shield_active_ = true;
+        popup_color          = {100, 255, 100};
+        break;
+    case TileType::Melon:
+        points                        = 1000;
+        fruit_double_bounty_timer_ms_ = 8000;
+        popup_color                   = {150, 255, 150};
+        break;
+    case TileType::Galaxian:
+        points      = 2000;
+        popup_color = {0, 220, 255};
+        for (auto& g : ghosts_) {
+            if (g.mode != GhostMode::Eaten && g.mode != GhostMode::InHouse) {
+                // If Pac-Man is right near the house exit, keep ghosts safely inside the house
+                if (std::abs(pacman_.position.x - Config::GHOST_HOUSE_EXIT.x) <= 1 &&
+                    std::abs(pacman_.position.y - Config::GHOST_HOUSE_EXIT.y) <= 1) {
+                    g.position = Config::GHOST_HOUSE_CENTER;
+                    g.mode     = GhostMode::InHouse;
+                } else {
+                    g.position = Config::GHOST_HOUSE_EXIT;
+                    g.mode     = GhostMode::Scatter;
+                }
+                g.currentDirection = Direction::Up;
+            }
+        }
+        ghost_freeze_timer_ms_ = 3000;
+        break;
+    case TileType::Bell:
+        points      = 3000;
+        popup_color = {255, 215, 0};
+        for (auto& g : ghosts_) {
+            g.frighten(Config::FRIGHTENED_DURATION);
+        }
+        break;
+    case TileType::Key:
+        points      = 5000;
+        popup_color = {255, 230, 100};
+        if (lives_ < 66)
+            lives_++;
+        triggerFever();
+        break;
+    default: points = 100; break;
+    }
+
+    addScore(points);
+    spawnScorePopup(pacman_.position, points, popup_color);
+    spawnParticleBurst(pacman_.position, popup_color);
+    playSound("sounds/eat_pellet.wav");
+}
+
+void GameEngine::renderThemeInfo() {
+    apply_menu_theme_ = false;
+    int center_row    = render_height_ / 2;
+    int center_col    = render_width_ / 2;
+
+    int box_w    = std::min(render_width_ - 2, 64);
+    int box_h    = std::min(render_height_ - 2, 10);
+    int left_col = center_col - box_w / 2;
+    int top_row  = center_row - box_h / 2;
+
+    int theme_idx = std::to_underlying(themeForLevel(level_)) % Config::THEME_COUNT;
+    if (theme_idx < 0)
+        theme_idx = 0;
+
+    Color lvl_primary = themePrimary(theme_idx, 0.0);
+    Color lvl_accent  = themeAccent(theme_idx, 0.0);
+
+    drawTitleBorderBox(top_row, left_col, box_w, box_h, " THEME INFO ", lvl_accent, lvl_primary, {0, 0, 0});
+
+    struct ThemeDetail {
+        std::vector<std::string> mechanics;
+        std::string hazard;
+    };
+
+    const std::array<ThemeDetail, 11> kThemeMechanics = {{
+        /* 0: Classic */   {{"Standard arcade pacing and balanced ghost AI", "Continuous dot chain multiplier scoring"}, "Tight corridor choke points"},
+        /* 1: Cyan */      {{"Speed Surge: Pac-Man moves 20% faster", "Acid Trails: Toxic floor residue in wake"}, "Tight corridor choke points"},
+        /* 2: Green */     {{"Warp Stun: Side tunnel warps stun ghosts", "Dot Bounty: Extra points for dot streaks"}, "High-speed ghost tunnel tracking"},
+        /* 3: Pink */      {{"Ember Shield: Complete thermal floor immunity", "Magma Multiplier: Double points on molten tiles"}, "Lava Tiles: Floor tiles ignite periodically"},
+        /* 4: Red */       {{"Dash Ability: Press [SPACE] to burst forward", "Fury Combos: Rapid ghost chains score 4x points"}, "Aggressive pursuit algorithms"},
+        /* 5: Violet */    {{"Blitz Bounty: Rapid pellet eating frenzy", "Arcane Harvest: Distant dots pull to Pac-Man"}, "Unstable teleportation spikes"},
+        /* 6: Ice */       {{"Permafrost: Ghost freeze duration extended", "Chilled Aura: Ghosts move slower near Pac-Man"}, "Icy Friction: Inertial turning slide"},
+        /* 7: Amber */     {{"Molten Shield: Invulnerability on bonus fruits", "Golden Multiplier: 4x points for eating ghosts"}, "Persistent double-speed ghost frenzy"},
+        /* 8: Rainbow */   {{"Prismatic Spectrum: Dynamic multi-hue frenzy", "Continuous dot chain multiplier scoring"}, "Chromatic ghost acceleration"},
+        /* 9: Glitch */    {{"Chaos Luck: Randomized surprise powerups", "Binary Warp: Unpredictable tunnel warps"}, "Flickering wall corruption noise"},
+        /* 10: PacTerm+ */ {{"Composite Master Theme: Combines all buffs", "Prismatic Scoring: Permanent 1.5x score bonus"}, "Apex master ghost difficulty curve"},
+    }};
+
+    const auto& cur = kThemeMechanics[theme_idx];
+    int cur_y       = top_row + 2;
+    int detail_x    = left_col + 3;
+
+    std::string theme_name{kThemeNames[theme_idx]};
+    drawString(cur_y++, detail_x, "Active Level: " + std::to_string(level_) + "   |   Theme: " + theme_name, lvl_primary, {0, 0, 0}, true);
+    cur_y++;
+
+    drawString(cur_y++, detail_x, "Active Mechanics:", lvl_primary, {0, 0, 0}, true);
+    for (const auto& mech : cur.mechanics) {
+        drawString(cur_y++, detail_x + 2, "• " + mech, {220, 240, 255}, {0, 0, 0}, false);
+    }
+
+    if (!cur.hazard.empty()) {
+        drawString(cur_y++, detail_x + 2, "• Hazard: " + cur.hazard, {255, 140, 140}, {0, 0, 0}, false);
+    }
 }

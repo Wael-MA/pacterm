@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.8
+// pacterm v1.3.9
 #pragma once
 
 #include "Types.hpp"
@@ -9,7 +9,7 @@ class PacMan : public Entity {
 public:
     PacMan() { reset(); }
 
-    void reset() override {
+    void reset() noexcept override {
         spawn_position_    = Config::PACMAN_SPAWN;
         position           = spawn_position_;
         currentDirection   = Direction::Left;
@@ -18,8 +18,12 @@ public:
         anim_frame_        = 0;
     }
 
-    bool tryMove(const Map& map) {
+    bool tryMove(const Map& map) noexcept {
         bool moved = false;
+
+        if (!map.isWalkable(position)) {
+            position = map.findNearestWalkable(position);
+        }
 
         if (requestedDirection != Direction::None) {
             Vec2 next_pos = position + directionToVec2(requestedDirection);
@@ -42,13 +46,13 @@ public:
         return moved;
     }
 
-    int animFrame() const { return anim_frame_; }
+    [[nodiscard]] int animFrame() const noexcept { return anim_frame_; }
 
-    void advanceAnim() { anim_frame_ = (anim_frame_ + 1) % 4; }
+    void advanceAnim() noexcept { anim_frame_ = (anim_frame_ + 1) % 4; }
 
-    bool isAlive() const { return alive_; }
+    [[nodiscard]] bool isAlive() const noexcept { return alive_; }
 
-    void kill() { alive_ = false; }
+    void kill() noexcept { alive_ = false; }
 
 private:
     bool alive_     = true;

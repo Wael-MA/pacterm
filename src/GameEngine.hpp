@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.8
+// pacterm v1.3.9
 #pragma once
 
 #include "Types.hpp"
@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <random>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <termios.h>
 #include <csignal>
@@ -19,15 +20,17 @@
 enum class GameAction : uint8_t { None = 0, Up = 1, Down = 2, Left = 3, Right = 4, Pause = 5 };
 
 enum class LevelTheme : uint8_t {
-    Classic = 0,
-    Cyan    = 1,
-    Green   = 2,
-    Pink    = 3,
-    Red     = 4,
-    Glitch  = 5,
-    Violet  = 6,
-    Ice     = 7,
-    Amber   = 8,
+    Classic     = 0,
+    Cyan        = 1,
+    Green       = 2,
+    Pink        = 3,
+    Red         = 4,
+    Violet      = 5,
+    Ice         = 6,
+    Amber       = 7,
+    Rainbow     = 8,
+    Glitch      = 9,
+    PacTermPlus = 10,
 };
 
 enum class PowerupKind : uint8_t {
@@ -68,6 +71,15 @@ struct AnimationController {
 
 class GameEngine {
 public:
+    struct TerminalSession {
+        struct termios orig_termios{};
+        bool raw_active = false;
+        TerminalSession();
+        ~TerminalSession() noexcept;
+        void restore() noexcept;
+        static TerminalSession*& instance() noexcept;
+    };
+
     GameEngine();
     ~GameEngine();
 
@@ -102,8 +114,8 @@ private:
     int global_mode_timer_ms_ = 0;
     size_t current_wave_      = 0;
 
-    struct termios original_termios_{};
-    bool raw_mode_enabled_ = false;
+    TerminalSession terminal_session_;
+
     Vec2 term_size_        = {80, 24};
     bool use_nerd_fonts_   = true;
 
@@ -112,12 +124,6 @@ private:
     int mouse_button_        = 0;
     bool mouse_press_        = false;
     bool mouse_hover_active_ = false;
-    static bool signal_term_restored_;
-    static struct termios signal_original_termios_;
-    static void signalHandler(int sig);
-    static void signalContHandler(int sig);
-    static void restoreTerminalForSignal();
-    static void installSignals();
 
     int render_width_  = 0;
     int render_height_ = 0;
@@ -125,14 +131,12 @@ private:
     std::vector<std::vector<Cell>> back_buffer_;
     std::string output_batch_;
 
-    void enableRawMode();
-    void disableRawMode();
     void queryTerminalSize();
 
     int readKey();
     void handleInput(int key);
     void handleMouseClick();
-    bool isMouseHovering(int row, int col, const std::string& text) const;
+    bool isMouseHovering(int row, int col, std::string_view text) const noexcept;
 
     void update(int delta_ms);
     void render();
@@ -181,13 +185,14 @@ private:
     void setTileGlyph(int row, int col, std::string glyph, Color fg, Color bg = {0, 0, 0}, bool bold = false);
     void fillRow(int row, Color fg, Color bg);
     static size_t utf8SequenceLength(unsigned char c) noexcept;
-    size_t glyphCount(const std::string& text) const noexcept;
-    size_t displayWidth(const std::string& text) const noexcept;
-    void drawString(int row, int col, const std::string& text, Color fg, Color bg = {0, 0, 0}, bool bold = false);
-    void drawGradientString(int row, int col, const std::string& text, Color start_fg, Color end_fg, Color bg = {0, 0, 0});
+    size_t glyphCount(std::string_view text) const noexcept;
+    size_t displayWidth(std::string_view text) const noexcept;
+    void drawString(int row, int col, std::string_view text, Color fg, Color bg = {0, 0, 0}, bool bold = false);
+    void drawGradientString(int row, int col, std::string_view text, Color start_fg, Color end_fg, Color bg = {0, 0, 0});
     void drawBox(int row, int col, int w, int h, Color fg, Color bg = {0, 0, 0});
     void drawDoubleBorderBox(int row, int col, int w, int h, Color fg, Color bg = {0, 0, 0});
-    void drawTitleBorderBox(int row, int col, int w, int h, const std::string& title, Color fg, Color bg = {0, 0, 0});
+    void drawTitleBorderBox(int row, int col, int w, int h, std::string_view title, Color border_fg, Color title_fg, Color bg = {0, 0, 0});
+    void drawTitleBorderBox(int row, int col, int w, int h, std::string_view title, Color fg);
     void clearBuffer(Color bg = {0, 0, 0});
     void presentFrame();
 
@@ -297,16 +302,6 @@ private:
 
     int ice_freeze_cooldown_ = 0;
 
-    bool special_item_active_ = false;
-    Vec2 special_item_pos_;
-    TileType special_item_type_;
-    int special_item_timer_ms_ = 0;
-
-    int cherry_spawn_timer_ms_ = 0;
-    int apple_spawn_timer_ms_  = 0;
-    int heart_spawn_timer_ms_  = 0;
-
-    void spawnSpecialItem(TileType type);
     void spawnScorePopup(Vec2 pos, int points, Color fg);
     void spawnParticleBurst(Vec2 pos, Color color);
 
@@ -331,6 +326,20 @@ private:
     int ghost_freeze_timer_ms_      = 0;
     int pac_speed_timer_ms_         = 0;
     int letter_score_mult_timer_ms_ = 0;
+
+    bool bonus_fruit_active_ = false;
+    Vec2 bonus_fruit_pos_{};
+    TileType bonus_fruit_type_ = TileType::Cherry;
+    int bonus_fruit_timer_ms_ = 0;
+    int fruit_magnet_timer_ms_ = 0;
+    bool fruit_shield_active_ = false;
+    int fruit_double_bounty_timer_ms_ = 0;
+    void spawnBonusFruit();
+    void updateBonusFruit(int delta_ms);
+    void eatBonusFruit(TileType type);
+
+    GamePhase pre_theme_info_phase_ = GamePhase::Paused;
+    void renderThemeInfo();
 
     LetterHuntState letter_hunt_;
     bool pacterm_plus_unlocked_ = false;

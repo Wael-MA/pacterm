@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.8
+// pacterm v1.3.9
 #pragma once
 
 #include "Types.hpp"
@@ -13,9 +13,9 @@ public:
     int dotCounter    = 0;
     Vec2 prevPosition = {-1, -1};
 
-    Ghost(GhostPersonality personality) : personality(personality) { reset(); }
+    explicit Ghost(GhostPersonality personality) : personality(personality) { reset(); }
 
-    void reset() override {
+    void reset() noexcept override {
         frightened_remaining_ = 0;
         currentDirection      = Direction::None;
         requestedDirection    = Direction::None;
@@ -44,9 +44,9 @@ public:
         position = spawn_position_;
     }
 
-    Direction reverseDirection() const { return getOppositeDirection(currentDirection); }
+    [[nodiscard]] Direction reverseDirection() const noexcept { return getOppositeDirection(currentDirection); }
 
-    void frighten(int duration_ms) {
+    void frighten(int duration_ms) noexcept {
         if (mode != GhostMode::Eaten && mode != GhostMode::InHouse) {
             mode                  = GhostMode::Frightened;
             frightened_remaining_ = duration_ms;
@@ -54,7 +54,7 @@ public:
         }
     }
 
-    void updateFrightened(int delta_ms) {
+    void updateFrightened(int delta_ms) noexcept {
         if (mode == GhostMode::Frightened) {
             frightened_remaining_ -= delta_ms;
             if (frightened_remaining_ <= 0) {
@@ -64,16 +64,16 @@ public:
         }
     }
 
-    bool isFrightenedFlashing() const { return mode == GhostMode::Frightened && frightened_remaining_ <= Config::FRIGHTENED_FLASH_AT; }
+    [[nodiscard]] bool isFrightenedFlashing() const noexcept { return mode == GhostMode::Frightened && frightened_remaining_ <= Config::FRIGHTENED_FLASH_AT; }
 
-    void setEaten() {
+    void setEaten() noexcept {
         mode                  = GhostMode::Eaten;
         frightened_remaining_ = 0;
     }
 
-    bool hasReachedHouse() const { return position == Config::GHOST_HOUSE_EXIT || position == Config::GHOST_HOUSE_CENTER; }
+    [[nodiscard]] bool hasReachedHouse() const noexcept { return position == Config::GHOST_HOUSE_EXIT || position == Config::GHOST_HOUSE_CENTER; }
 
-    void exitHouse() {
+    void exitHouse() noexcept {
         if (mode == GhostMode::InHouse) {
             position         = Config::GHOST_HOUSE_EXIT;
             mode             = GhostMode::Scatter;

@@ -1,6 +1,6 @@
 # Contributing to PacTerm
 
-First off, thank you for taking the time to contribute! 🎮
+First off, thank you for taking the time to contribute!
 
 The following is a set of guidelines for contributing to PacTerm. These are
 guidelines, not rules. Use your best judgment, and feel free to propose changes
@@ -38,7 +38,7 @@ expected to uphold this code. Please report unacceptable behavior to
 
 Before you begin, ensure you have the following installed:
 
-- **C++20 compatible compiler**: GCC 10+, Clang 12+, or MSVC 19.28+
+- **C++23 compatible compiler**: GCC 14+, Clang 17+, or MSVC 19.38+
 - **CMake** 3.16+ (recommended build system)
 - **Make** (alternative build system)
 - **clang-format** (for code formatting checks)
@@ -135,7 +135,7 @@ make
 
 ### Code Style
 
-- Follow C++20 best practices and modern C++ idioms.
+- Follow C++23 best practices and modern C++ idioms.
 - Use **2-space indentation** (matching the existing codebase).
 - Use `snake_case` for functions, variables, and file names; `PascalCase` for
   types; `UPPER_SNAKE_CASE` for constants.
@@ -305,4 +305,4 @@ git checkout -b feature/dash-mechanic
 
 ---
 
-Thanks for helping make PacTerm better! ❤️
+Thanks for helping make PacTerm better!

@@ -15,14 +15,14 @@ Closes #<!-- e.g. Closes #42 -->
 
 <!-- Check the boxes that apply by replacing `[ ]` with `[x]`. -->
 
-- [ ] 🐛 Bug fix (non-breaking change that fixes an issue)
-- [ ] ✨ New feature (non-breaking change that adds functionality)
-- [ ] 💥 Breaking change (fix or feature that breaks existing behavior)
-- [ ] ♻️ Refactor (no functional change)
-- [ ] ⚡ Performance improvement
-- [ ] 📝 Documentation update
-- [ ] 🧪 Test / CI change
-- [ ] 🔧 Chore (build, cleanup, version bump)
+- [ ] Bug fix (non-breaking change that fixes an issue)
+- [ ] New feature (non-breaking change that adds functionality)
+- [ ] Breaking change (fix or feature that breaks existing behavior)
+- [ ] Refactor (no functional change)
+- [ ] Performance improvement
+- [ ] Documentation update
+- [ ] Test / CI change
+- [ ] Chore (build, cleanup, version bump)
 
 ## Testing Performed
 
@@ -40,7 +40,7 @@ Closes #<!-- e.g. Closes #42 -->
 
 <!-- Ensure the following are complete before requesting review. -->
 
-- [ ] Code follows the project's [code style](CONTRIBUTING.md#code-style) (C++20, modern idioms)
+- [ ] Code follows the project's [code style](CONTRIBUTING.md#code-style) (C++23, modern idioms)
 - [ ] Changes are focused and one logical change per PR
 - [ ] Commit messages follow [Conventional Commits](CONTRIBUTING.md#git-commit-conventions)
 - [ ] Branch name follows the [naming standards](CONTRIBUTING.md#branch-naming-standards)

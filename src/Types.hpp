@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.8
+// pacterm v1.3.9
 #pragma once
 
 #include <cstdint>
@@ -9,20 +9,21 @@
 #include <vector>
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 struct Vec2 {
     int x = 0;
     int y = 0;
 
-    constexpr bool operator==(const Vec2&) const = default;
+    constexpr bool operator==(const Vec2&) const noexcept = default;
 
-    constexpr Vec2 operator+(const Vec2& other) const { return {x + other.x, y + other.y}; }
+    [[nodiscard]] constexpr Vec2 operator+(const Vec2& other) const noexcept { return {x + other.x, y + other.y}; }
 
-    constexpr Vec2 operator-(const Vec2& other) const { return {x - other.x, y - other.y}; }
+    [[nodiscard]] constexpr Vec2 operator-(const Vec2& other) const noexcept { return {x - other.x, y - other.y}; }
 
-    constexpr Vec2 operator*(int scalar) const { return {x * scalar, y * scalar}; }
+    [[nodiscard]] constexpr Vec2 operator*(int scalar) const noexcept { return {x * scalar, y * scalar}; }
 
-    Vec2& operator+=(const Vec2& other) {
+    constexpr Vec2& operator+=(const Vec2& other) noexcept {
         x += other.x;
         y += other.y;
         return *this;
@@ -46,6 +47,13 @@ enum class TileType : uint8_t {
     LetterR     = 14,
     LetterM     = 15,
     Heart       = 16,
+    Strawberry  = 17,
+    Orange      = 18,
+    Apple       = 19,
+    Melon       = 20,
+    Galaxian    = 21,
+    Bell        = 22,
+    Key         = 23,
 };
 
 enum class Direction : uint8_t {
@@ -56,24 +64,26 @@ enum class Direction : uint8_t {
     Right = 4,
 };
 
-constexpr Vec2 directionToVec2(Direction d) {
+[[nodiscard]] constexpr Vec2 directionToVec2(Direction d) noexcept {
     switch (d) {
+    case Direction::None: return {0, 0};
     case Direction::Up: return {0, -1};
     case Direction::Down: return {0, 1};
     case Direction::Left: return {-1, 0};
     case Direction::Right: return {1, 0};
-    default: return {0, 0};
     }
+    std::unreachable();
 }
 
-constexpr Direction getOppositeDirection(Direction d) {
+[[nodiscard]] constexpr Direction getOppositeDirection(Direction d) noexcept {
     switch (d) {
+    case Direction::None: return Direction::None;
     case Direction::Up: return Direction::Down;
     case Direction::Down: return Direction::Up;
     case Direction::Left: return Direction::Right;
     case Direction::Right: return Direction::Left;
-    default: return Direction::None;
     }
+    std::unreachable();
 }
 
 enum class GhostPersonality : uint8_t {
@@ -108,6 +118,7 @@ enum class GamePhase : uint8_t {
     RedeemInput      = 13,
     Stats            = 14,
     LevelClear       = 15,
+    ThemeInfo        = 16,
 };
 
 namespace Config {
@@ -133,10 +144,11 @@ namespace Config {
 
     inline constexpr int INITIAL_LIVES = 3;
 
-    inline constexpr const char* PACTERM_VERSION = "1.3.8";
+    inline constexpr const char* PACTERM_VERSION = "1.3.9";
 
-    inline constexpr int THEME_COUNT        = 10;
-    inline constexpr int PACTERM_PLUS_THEME = 9;
+    inline constexpr int THEME_COUNT        = 11;
+    inline constexpr int GLITCH_THEME       = 9;
+    inline constexpr int PACTERM_PLUS_THEME = 10;
 
     inline constexpr int LETTER_SCORE               = 1000;
     inline constexpr int LETTER_GHOST_FREEZE_MS     = 3000;
@@ -170,15 +182,11 @@ namespace Config {
     inline constexpr int TUNNEL_ROW = 14;
 } // namespace Config
 
-constexpr Vec2 clampToMap(Vec2 v) noexcept {
-    if (v.x < 0)
-        v.x = 0;
-    else if (v.x >= Config::MAP_WIDTH)
-        v.x = Config::MAP_WIDTH - 1;
-    if (v.y < 0)
-        v.y = 0;
-    else if (v.y >= Config::MAP_HEIGHT)
-        v.y = Config::MAP_HEIGHT - 1;
+[[nodiscard]] constexpr Vec2 clampToMap(Vec2 v) noexcept {
+    v.x = std::clamp(v.x, 0, Config::MAP_WIDTH - 1);
+    v.y = std::clamp(v.y, 0, Config::MAP_HEIGHT - 1);
+    [[assume(v.x >= 0 && v.x < Config::MAP_WIDTH)]];
+    [[assume(v.y >= 0 && v.y < Config::MAP_HEIGHT)]];
     return v;
 }
 
@@ -560,13 +568,13 @@ struct LetterHuntState {
     TileType type = TileType::LetterP;
     int timer_ms  = 0;
 
-    bool isCollected(int idx) const { return idx >= 0 && idx < LETTER_COUNT && (letter_mask & (1u << idx)) != 0; }
-    void collect(int idx) {
+    [[nodiscard]] constexpr bool isCollected(int idx) const noexcept { return idx >= 0 && idx < LETTER_COUNT && (letter_mask & (1u << idx)) != 0; }
+    constexpr void collect(int idx) noexcept {
         if (idx >= 0 && idx < LETTER_COUNT) {
             letter_mask = static_cast<uint8_t>(letter_mask | (1u << idx));
         }
     }
-    bool allCollected() const { return (letter_mask & FULL_MASK) == FULL_MASK; }
+    [[nodiscard]] constexpr bool allCollected() const noexcept { return (letter_mask & FULL_MASK) == FULL_MASK; }
 };
 
 namespace FeverState {
@@ -679,224 +687,46 @@ public:
     }
 
     void loadLevel(int levelNumber) {
-        bool manual = false;
-        if (levelNumber >= 1 && levelNumber <= 30) {
-            manual = true;
-        }
-
-        if (manual) {
-            switch (levelNumber) {
-            case 1: loadFromTemplate(MapTemplates::MAP_TEMPLATE_1, levelNumber, false); break;
-            case 2: loadFromTemplate(MapTemplates::MAP_TEMPLATE_2, levelNumber, false); break;
-            case 3: loadFromTemplate(MapTemplates::MAP_TEMPLATE_3, levelNumber, false); break;
-            case 4: loadFromTemplate(MapTemplates::MAP_TEMPLATE_4, levelNumber, false); break;
-            case 5: loadFromTemplate(MapTemplates::MAP_TEMPLATE_5, levelNumber, false); break;
-            case 6: loadFromTemplate(MapTemplates::MAP_TEMPLATE_6, levelNumber, false); break;
-            case 7: loadFromTemplate(MapTemplates::MAP_TEMPLATE_7, levelNumber, false); break;
-            case 8: loadFromTemplate(MapTemplates::MAP_TEMPLATE_8, levelNumber, false); break;
-            case 9: loadFromTemplate(MapTemplates::MAP_TEMPLATE_9, levelNumber, false); break;
-            case 10: loadFromTemplate(MapTemplates::MAP_TEMPLATE_10, levelNumber, false); break;
-            case 11: loadFromTemplate(MapTemplates::MAP_TEMPLATE_11, levelNumber, false); break;
-            case 12: loadFromTemplate(MapTemplates::MAP_TEMPLATE_12, levelNumber, false); break;
-            case 13: loadFromTemplate(MapTemplates::MAP_TEMPLATE_13, levelNumber, false); break;
-            case 14: loadFromTemplate(MapTemplates::MAP_TEMPLATE_14, levelNumber, false); break;
-            case 15: loadFromTemplate(MapTemplates::MAP_TEMPLATE_15, levelNumber, false); break;
-            case 16: loadFromTemplate(MapTemplates::MAP_TEMPLATE_16, levelNumber, false); break;
-            case 17: loadFromTemplate(MapTemplates::MAP_TEMPLATE_17, levelNumber, false); break;
-            case 18: loadFromTemplate(MapTemplates::MAP_TEMPLATE_18, levelNumber, false); break;
-            case 19: loadFromTemplate(MapTemplates::MAP_TEMPLATE_19, levelNumber, false); break;
-            case 20: loadFromTemplate(MapTemplates::MAP_TEMPLATE_20, levelNumber, false); break;
-            case 21: loadFromTemplate(MapTemplates::MAP_TEMPLATE_21, levelNumber, false); break;
-            case 22: loadFromTemplate(MapTemplates::MAP_TEMPLATE_22, levelNumber, false); break;
-            case 23: loadFromTemplate(MapTemplates::MAP_TEMPLATE_23, levelNumber, false); break;
-            case 24: loadFromTemplate(MapTemplates::MAP_TEMPLATE_24, levelNumber, false); break;
-            case 25: loadFromTemplate(MapTemplates::MAP_TEMPLATE_25, levelNumber, false); break;
-            case 26: loadFromTemplate(MapTemplates::MAP_TEMPLATE_26, levelNumber, false); break;
-            case 27: loadFromTemplate(MapTemplates::MAP_TEMPLATE_27, levelNumber, false); break;
-            case 28: loadFromTemplate(MapTemplates::MAP_TEMPLATE_28, levelNumber, false); break;
-            case 29: loadFromTemplate(MapTemplates::MAP_TEMPLATE_29, levelNumber, false); break;
-            case 30: loadFromTemplate(MapTemplates::MAP_TEMPLATE_30, levelNumber, false); break;
-            default: loadFromTemplate(MapTemplates::MAP_TEMPLATE_1, levelNumber, false); break;
-            }
-        } else {
-            for (auto& row : tiles_) {
-                row.fill(TileType::Wall);
-            }
-
-            uint32_t prng_state = levelNumber * 73821 + 528913;
-            auto rand_num       = [&]() {
-                prng_state = prng_state * 1664525 + 1013904223;
-                return prng_state;
-            };
-
-            for (int y = 12; y <= 16; ++y) {
-                tiles_[y][10] = TileType::Wall;
-            }
-            for (int x = 10; x <= 12; ++x) {
-                tiles_[12][x] = TileType::Wall;
-                tiles_[16][x] = TileType::Wall;
-            }
-            tiles_[12][13] = TileType::GhostDoor;
-            tiles_[16][13] = TileType::Wall;
-
-            for (int y = 13; y <= 15; ++y) {
-                for (int x = 11; x <= 13; ++x) {
-                    tiles_[y][x] = TileType::Empty;
-                }
-            }
-
-            tiles_[23][13] = TileType::Empty;
-
-            for (int x = 0; x <= 5; ++x) {
-                tiles_[Config::TUNNEL_ROW][x] = TileType::Empty;
-            }
-            tiles_[Config::TUNNEL_ROW][0] = TileType::Tunnel;
-
-            struct Coord {
-                int x, y;
-            };
-            std::vector<Coord> stack;
-
-            tiles_[1][1] = TileType::Empty;
-            stack.push_back({1, 1});
-
-            while (!stack.empty()) {
-                Coord curr = stack.back();
-
-                std::vector<Coord> neighbors;
-                std::array<Coord, 4> dirs = {{{curr.x + 2, curr.y}, {curr.x - 2, curr.y}, {curr.x, curr.y + 2}, {curr.x, curr.y - 2}}};
-
-                for (const auto& next : dirs) {
-                    if (next.x >= 1 && next.x <= 13 && next.y >= 1 && next.y <= 29) {
-                        if (tiles_[next.y][next.x] == TileType::Wall) {
-                            if (!(next.x >= 10 && next.y >= 12 && next.y <= 16)) {
-                                neighbors.push_back(next);
-                            }
-                        }
-                    }
-                }
-
-                if (!neighbors.empty()) {
-                    int idx      = rand_num() % neighbors.size();
-                    Coord chosen = neighbors[idx];
-
-                    tiles_[chosen.y][chosen.x]                               = TileType::Empty;
-                    tiles_[(curr.y + chosen.y) / 2][(curr.x + chosen.x) / 2] = TileType::Empty;
-
-                    stack.push_back(chosen);
-                } else {
-                    stack.pop_back();
-                }
-            }
-
-            tiles_[22][13] = TileType::Empty;
-            tiles_[23][13] = TileType::Empty;
-            tiles_[23][12] = TileType::Empty;
-            tiles_[23][11] = TileType::Empty;
-
-            tiles_[10][13] = TileType::Empty;
-            tiles_[11][13] = TileType::Empty;
-
-            tiles_[Config::TUNNEL_ROW][5] = TileType::Empty;
-            tiles_[Config::TUNNEL_ROW][6] = TileType::Empty;
-
-            for (int y = 2; y < Config::MAP_HEIGHT - 2; ++y) {
-                for (int x = 2; x < 13; ++x) {
-                    if (tiles_[y][x] == TileType::Empty) {
-                        int wall_count = 0;
-                        std::vector<Coord> wall_dirs;
-                        if (tiles_[y - 1][x] == TileType::Wall) {
-                            wall_count++;
-                            wall_dirs.push_back({x, y - 1});
-                        }
-                        if (tiles_[y + 1][x] == TileType::Wall) {
-                            wall_count++;
-                            wall_dirs.push_back({x, y + 1});
-                        }
-                        if (tiles_[y][x - 1] == TileType::Wall) {
-                            wall_count++;
-                            wall_dirs.push_back({x - 1, y});
-                        }
-                        if (tiles_[y][x + 1] == TileType::Wall) {
-                            wall_count++;
-                            wall_dirs.push_back({x + 1, y});
-                        }
-
-                        if (wall_count >= 3 && !wall_dirs.empty()) {
-                            for (const auto& w : wall_dirs) {
-                                if (w.x > 0 && w.x < 13 && w.y > 0 && w.y < Config::MAP_HEIGHT - 1) {
-                                    if (!(w.x >= 10 && w.y >= 12 && w.y <= 16)) {
-                                        tiles_[w.y][w.x] = TileType::Empty;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            for (int y = 2; y < Config::MAP_HEIGHT - 2; ++y) {
-                for (int x = 2; x < 13; ++x) {
-                    if (tiles_[y][x] == TileType::Wall) {
-                        bool left_empty  = (tiles_[y][x - 1] == TileType::Empty || tiles_[y][x - 1] == TileType::Dot);
-                        bool right_empty = (tiles_[y][x + 1] == TileType::Empty || tiles_[y][x + 1] == TileType::Dot);
-                        bool up_empty    = (tiles_[y - 1][x] == TileType::Empty || tiles_[y - 1][x] == TileType::Dot);
-                        bool down_empty  = (tiles_[y + 1][x] == TileType::Empty || tiles_[y + 1][x] == TileType::Dot);
-
-                        if ((left_empty && right_empty && !up_empty && !down_empty) || (up_empty && down_empty && !left_empty && !right_empty)) {
-                            if (!(x >= 10 && y >= 12 && y <= 16)) {
-                                if ((rand_num() % 100) < 15) {
-                                    tiles_[y][x] = TileType::Empty;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            for (int y = 0; y < Config::MAP_HEIGHT; ++y) {
-                for (int x = 0; x < 14; ++x) {
-                    tiles_[y][27 - x] = tiles_[y][x];
-                }
-            }
-
-            total_dots_ = 0;
-            for (int y = 1; y < Config::MAP_HEIGHT - 1; ++y) {
-                for (int x = 1; x < Config::MAP_WIDTH - 1; ++x) {
-                    if (x >= 10 && x <= 17 && y >= 12 && y <= 16) {
-                        continue;
-                    }
-                    if (y == Config::TUNNEL_ROW && (x < 6 || x > 21)) {
-                        continue;
-                    }
-                    if (y == 23 && x == 13) {
-                        continue;
-                    }
-
-                    if (tiles_[y][x] == TileType::Empty) {
-                        tiles_[y][x] = TileType::Dot;
-                        ++total_dots_;
-                    }
-                }
-            }
-
-            std::array<Vec2, 4> pellets = {{{1, 3}, {26, 3}, {1, 23}, {26, 23}}};
-            for (const auto& p : pellets) {
-                if (tiles_[p.y][p.x] == TileType::Dot || tiles_[p.y][p.x] == TileType::Empty) {
-                    tiles_[p.y][p.x] = TileType::PowerPellet;
-                }
-            }
-
-            remaining_dots_ = total_dots_;
+        switch (levelNumber) {
+        case 1: loadFromTemplate(MapTemplates::MAP_TEMPLATE_1, levelNumber, false); break;
+        case 2: loadFromTemplate(MapTemplates::MAP_TEMPLATE_2, levelNumber, false); break;
+        case 3: loadFromTemplate(MapTemplates::MAP_TEMPLATE_3, levelNumber, false); break;
+        case 4: loadFromTemplate(MapTemplates::MAP_TEMPLATE_4, levelNumber, false); break;
+        case 5: loadFromTemplate(MapTemplates::MAP_TEMPLATE_5, levelNumber, false); break;
+        case 6: loadFromTemplate(MapTemplates::MAP_TEMPLATE_6, levelNumber, false); break;
+        case 7: loadFromTemplate(MapTemplates::MAP_TEMPLATE_7, levelNumber, false); break;
+        case 8: loadFromTemplate(MapTemplates::MAP_TEMPLATE_8, levelNumber, false); break;
+        case 9: loadFromTemplate(MapTemplates::MAP_TEMPLATE_9, levelNumber, false); break;
+        case 10: loadFromTemplate(MapTemplates::MAP_TEMPLATE_10, levelNumber, false); break;
+        case 11: loadFromTemplate(MapTemplates::MAP_TEMPLATE_11, levelNumber, false); break;
+        case 12: loadFromTemplate(MapTemplates::MAP_TEMPLATE_12, levelNumber, false); break;
+        case 13: loadFromTemplate(MapTemplates::MAP_TEMPLATE_13, levelNumber, false); break;
+        case 14: loadFromTemplate(MapTemplates::MAP_TEMPLATE_14, levelNumber, false); break;
+        case 15: loadFromTemplate(MapTemplates::MAP_TEMPLATE_15, levelNumber, false); break;
+        case 16: loadFromTemplate(MapTemplates::MAP_TEMPLATE_16, levelNumber, false); break;
+        case 17: loadFromTemplate(MapTemplates::MAP_TEMPLATE_17, levelNumber, false); break;
+        case 18: loadFromTemplate(MapTemplates::MAP_TEMPLATE_18, levelNumber, false); break;
+        case 19: loadFromTemplate(MapTemplates::MAP_TEMPLATE_19, levelNumber, false); break;
+        case 20: loadFromTemplate(MapTemplates::MAP_TEMPLATE_20, levelNumber, false); break;
+        case 21: loadFromTemplate(MapTemplates::MAP_TEMPLATE_21, levelNumber, false); break;
+        case 22: loadFromTemplate(MapTemplates::MAP_TEMPLATE_22, levelNumber, false); break;
+        case 23: loadFromTemplate(MapTemplates::MAP_TEMPLATE_23, levelNumber, false); break;
+        case 24: loadFromTemplate(MapTemplates::MAP_TEMPLATE_24, levelNumber, false); break;
+        case 25: loadFromTemplate(MapTemplates::MAP_TEMPLATE_25, levelNumber, false); break;
+        case 26: loadFromTemplate(MapTemplates::MAP_TEMPLATE_26, levelNumber, false); break;
+        case 27: loadFromTemplate(MapTemplates::MAP_TEMPLATE_27, levelNumber, false); break;
+        case 28: loadFromTemplate(MapTemplates::MAP_TEMPLATE_28, levelNumber, false); break;
+        case 29: loadFromTemplate(MapTemplates::MAP_TEMPLATE_29, levelNumber, false); break;
+        case 30: loadFromTemplate(MapTemplates::MAP_TEMPLATE_30, levelNumber, false); break;
+        default: loadFromTemplate(MapTemplates::MAP_TEMPLATE_1, levelNumber, false); break;
         }
     }
 
     void reset() { loadLevel(1); }
 
-    TileType getTile(Vec2 pos) const { return getTile(pos.x, pos.y); }
+    [[nodiscard]] TileType getTile(Vec2 pos) const noexcept { return getTile(pos.x, pos.y); }
 
-    TileType getTile(int x, int y) const {
+    [[nodiscard]] TileType getTile(int x, int y) const noexcept {
         if (y < 0 || y >= Config::MAP_HEIGHT) {
             return TileType::Wall;
         }
@@ -909,7 +739,7 @@ public:
         return tiles_[y][x];
     }
 
-    void setTile(Vec2 pos, TileType type) {
+    void setTile(Vec2 pos, TileType type) noexcept {
         if (pos.x >= 0 && pos.x < Config::MAP_WIDTH && pos.y >= 0 && pos.y < Config::MAP_HEIGHT) {
             TileType prev        = tiles_[pos.y][pos.x];
             tiles_[pos.y][pos.x] = type;
@@ -922,17 +752,55 @@ public:
         }
     }
 
-    bool isWalkable(Vec2 pos) const {
+    [[nodiscard]] bool isWalkable(Vec2 pos) const noexcept {
         TileType t = getTile(pos);
         return t != TileType::Wall && t != TileType::GhostDoor;
     }
 
-    bool isWalkableByGhost(Vec2 pos) const {
+    [[nodiscard]] bool isWalkableByGhost(Vec2 pos) const noexcept {
         TileType t = getTile(pos);
         return t != TileType::Wall;
     }
 
-    bool isInTunnel(Vec2 pos) const {
+    [[nodiscard]] Vec2 findNearestWalkable(Vec2 start_pos) const noexcept {
+        if (isWalkable(start_pos))
+            return start_pos;
+
+        std::array<std::array<bool, Config::MAP_WIDTH>, Config::MAP_HEIGHT> visited{};
+        std::array<Vec2, Config::MAP_WIDTH * Config::MAP_HEIGHT> q{};
+
+        Vec2 clamped = {
+            std::clamp(start_pos.x, 0, Config::MAP_WIDTH - 1),
+            std::clamp(start_pos.y, 0, Config::MAP_HEIGHT - 1)
+        };
+
+        visited[clamped.y][clamped.x] = true;
+        size_t head = 0;
+        size_t tail = 0;
+        q[tail++] = clamped;
+
+        while (head < tail) {
+            Vec2 curr = q[head++];
+            if (isWalkable(curr)) {
+                return curr;
+            }
+            std::array<Vec2, 4> neighbors = {{{curr.x + 1, curr.y}, {curr.x - 1, curr.y}, {curr.x, curr.y + 1}, {curr.x, curr.y - 1}}};
+            for (auto n : neighbors) {
+                Vec2 wrapped = wrapTunnel(n);
+                if (wrapped.x >= 0 && wrapped.x < Config::MAP_WIDTH && wrapped.y >= 0 && wrapped.y < Config::MAP_HEIGHT) {
+                    if (!visited[wrapped.y][wrapped.x]) {
+                        visited[wrapped.y][wrapped.x] = true;
+                        if (tail < q.size()) {
+                            q[tail++] = wrapped;
+                        }
+                    }
+                }
+            }
+        }
+        return Config::PACMAN_SPAWN;
+    }
+
+    [[nodiscard]] bool isInTunnel(Vec2 pos) const noexcept {
         if (pos.y >= 0 && pos.y < Config::MAP_HEIGHT) {
             if (tiles_[pos.y][0] == TileType::Tunnel || tiles_[pos.y][Config::MAP_WIDTH - 1] == TileType::Tunnel) {
                 return pos.x < 0 || pos.x >= Config::MAP_WIDTH || tiles_[pos.y][pos.x] == TileType::Tunnel;
@@ -941,7 +809,7 @@ public:
         return false;
     }
 
-    Vec2 wrapTunnel(Vec2 pos) const {
+    [[nodiscard]] Vec2 wrapTunnel(Vec2 pos) const noexcept {
         if (pos.y >= 0 && pos.y < Config::MAP_HEIGHT) {
             if (tiles_[pos.y][0] == TileType::Tunnel || tiles_[pos.y][Config::MAP_WIDTH - 1] == TileType::Tunnel) {
                 if (pos.x < 0) {
@@ -954,10 +822,10 @@ public:
         return pos;
     }
 
-    int remainingDots() const { return remaining_dots_; }
-    int totalDots() const { return total_dots_; }
+    [[nodiscard]] int remainingDots() const noexcept { return remaining_dots_; }
+    [[nodiscard]] int totalDots() const noexcept { return total_dots_; }
 
-    uint8_t wallNeighborMask(Vec2 pos) const {
+    [[nodiscard]] uint8_t wallNeighborMask(Vec2 pos) const noexcept {
         auto isWallOrDoor = [this](int x, int y) {
             TileType t = getTile(x, y);
             return t == TileType::Wall || t == TileType::GhostDoor;

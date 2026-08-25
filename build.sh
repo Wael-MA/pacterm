@@ -2,7 +2,7 @@
 set -e
 
 CXX=g++
-CXXFLAGS="-std=c++20 -Wall -Wextra -Wpedantic -Werror -Isrc -O2"
+CXXFLAGS="-std=c++23 -Wall -Wextra -Wpedantic -Werror -Isrc -O2"
 
 SRC="src/main.cpp src/GameEngine.cpp"
 TARGET="pacterm"
