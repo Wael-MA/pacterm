@@ -73,10 +73,20 @@ public:
 
     [[nodiscard]] bool hasReachedHouse() const noexcept { return position == Config::GHOST_HOUSE_EXIT || position == Config::GHOST_HOUSE_CENTER; }
 
-    void exitHouse() noexcept {
+    void reviveInHouse(GhostMode global_mode = GhostMode::Scatter) noexcept {
+        position              = Config::GHOST_HOUSE_CENTER;
+        mode                  = GhostMode::InHouse;
+        dotCounter            = 999;
+        frightened_remaining_ = 0;
+        prevPosition          = {-1, -1};
+        currentDirection      = Direction::Up;
+        (void)global_mode;
+    }
+
+    void exitHouse(GhostMode global_mode = GhostMode::Scatter) noexcept {
         if (mode == GhostMode::InHouse) {
             position         = Config::GHOST_HOUSE_EXIT;
-            mode             = GhostMode::Scatter;
+            mode             = global_mode;
             currentDirection = Direction::Left;
         }
     }

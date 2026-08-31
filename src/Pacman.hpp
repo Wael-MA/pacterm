@@ -9,9 +9,12 @@ class PacMan : public Entity {
 public:
     PacMan() { reset(); }
 
+    Vec2 prevPosition = {-1, -1};
+
     void reset() noexcept override {
         spawn_position_    = Config::PACMAN_SPAWN;
         position           = spawn_position_;
+        prevPosition       = {-1, -1};
         currentDirection   = Direction::Left;
         requestedDirection = Direction::None;
         alive_             = true;
@@ -19,7 +22,8 @@ public:
     }
 
     bool tryMove(const Map& map) noexcept {
-        bool moved = false;
+        bool moved   = false;
+        prevPosition = position;
 
         if (!map.isWalkable(position)) {
             position = map.findNearestWalkable(position);

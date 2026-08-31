@@ -17,6 +17,11 @@
 #include <csignal>
 #include <unordered_map>
 #include <filesystem>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
 
 enum class GameAction : uint8_t { None = 0, Up = 1, Down = 2, Left = 3, Right = 4, Pause = 5 };
 
@@ -128,8 +133,8 @@ private:
 
     int render_width_  = 0;
     int render_height_ = 0;
-    std::vector<std::vector<Cell>> front_buffer_;
-    std::vector<std::vector<Cell>> back_buffer_;
+    std::vector<Cell> front_buffer_;
+    std::vector<Cell> back_buffer_;
     std::string output_batch_;
 
     void queryTerminalSize();
@@ -366,6 +371,13 @@ private:
     void generateSounds();
     void playSound(const std::string& name);
     std::filesystem::path getSoundDirectory();
+    void audioWorkerLoop();
+
+    std::atomic<bool> audio_running_{true};
+    std::mutex audio_mutex_;
+    std::condition_variable audio_cv_;
+    std::queue<std::string> audio_queue_;
+    std::thread audio_thread_;
 
     std::mt19937 rng_;
 };

@@ -32,9 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed theme cycling in Settings and Dev menus so PacTerm+ (theme #10) cycles smoothly once unlocked.
 - **Terminal Session Safety & Cleanup**:
   - Unconditionally restores cursor visibility, disables mouse reporting, clears SGR attributes, and resets terminal `termios` flags on exit and upon receiving POSIX signals (`SIGINT`, `SIGTERM`, `SIGSEGV`, etc.).
-- **Rendering & Engine Performance**:
-  - Enhanced double-buffering and output batching with reserved string buffers to eliminate allocations during gameplay frames.
-  - Cleaned entity and particle management with `std::erase_if` for zero-allocation tick loops.
+- **Collision & Movement Safety**:
+  - Implemented bidirectional two-body swap collision tracking between Pac-Man and ghosts using `prevPosition` recording.
+  - Wrapped tunnel coordinates within the Dash ability loop to prevent out-of-bounds positioning.
+  - Fixed ghost house return revival for Inky and Clyde (`dotCounter` reset fix) and dynamic global mode exit (`Scatter`/`Chase`).
+- **Data Persistence & Encoding**:
+  - Implemented hex-encoded XOR ciphertext serialization for high scores and user statistics to eliminate null-byte truncation.
+- **TUI & Rendering Optimization**:
+  - Flattened double-buffer storage into contiguous 1D memory buffers (`std::vector<Cell>`), eliminating row vector allocations and cache misses.
+  - Replaced coordinate formatting with zero-allocation `std::to_chars` ANSI generation in `presentFrame`.
+  - Added single-width tile padding in `setTileGlyph` to prevent wide-character visual artifacting.
+- **Audio & Input Subsystem**:
+  - Deployed dedicated background audio worker thread with non-blocking dispatch and queueing.
+  - Added STDIN poll timeout to safely resolve split ANSI escape sequences without stalling.
+  - Made crash signal handler async-signal-safe by removing `tcsetattr` calls from fatal signal context.
 
 ---
 

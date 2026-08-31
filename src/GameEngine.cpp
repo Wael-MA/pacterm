@@ -15,6 +15,7 @@
 #include <csignal>
 #include <poll.h>
 #include <utility>
+#include <charconv>
 
 namespace {
     constexpr std::string_view kEnterAltScreen = "\033[?1049h\033[2J\033[H\033[?25l";
@@ -252,9 +253,7 @@ namespace {
         static void handleResize(int) noexcept { window_resized.store(true, std::memory_order_relaxed); }
 
         static void handleCrash(int sig) noexcept {
-            if (auto* inst = GameEngine::TerminalSession::instance()) {
-                inst->restore();
-            }
+            safeWrite(STDOUT_FILENO, kLeaveAltScreen.data(), kLeaveAltScreen.size());
             struct sigaction sa = {};
             ::sigemptyset(&sa.sa_mask);
             sa.sa_handler = SIG_DFL;
@@ -430,9 +429,16 @@ GameEngine::GameEngine()
     } catch (...) {}
     startMainMenu();
     fade_animation_.fadeIn({255, 255, 255}, 400);
+    audio_thread_ = std::thread(&GameEngine::audioWorkerLoop, this);
 }
 
 GameEngine::~GameEngine() {
+    audio_running_.store(false, std::memory_order_release);
+    audio_cv_.notify_all();
+    if (audio_thread_.joinable()) {
+        audio_thread_.join();
+    }
+
     terminal_session_.restore();
 
     std::string_view message = "Thanks for playing pacterm by Wael!";
@@ -482,6 +488,15 @@ int GameEngine::readKey() {
     if (c == '\033') {
         size_t rem = s_len - (s_pos - 1);
         if (rem == 1) {
+            struct pollfd pfd{STDIN_FILENO, POLLIN, 0};
+            if (::poll(&pfd, 1, 15) > 0 && (pfd.revents & POLLIN)) {
+                ssize_t n = ::read(STDIN_FILENO, s_buf, sizeof(s_buf));
+                if (n > 0) {
+                    s_len = static_cast<size_t>(n);
+                    s_pos = 0;
+                    return readKey();
+                }
+            }
             return 27;
         }
         if (s_pos < s_len && s_buf[s_pos] == '[') {
@@ -876,10 +891,11 @@ void GameEngine::handleInput(int key) {
                 dir_vec = {1, 0};
 
             for (int i = 0; i < 3; ++i) {
-                Vec2 next_pos      = {pacman_.position.x + dir_vec.x, pacman_.position.y + dir_vec.y};
+                Vec2 next_pos      = map_.wrapTunnel(pacman_.position + dir_vec);
                 TileType next_tile = map_.getTile(next_pos);
                 if (next_tile != TileType::Wall && next_tile != TileType::GhostDoor) {
-                    pacman_.position = next_pos;
+                    pacman_.prevPosition = pacman_.position;
+                    pacman_.position     = next_pos;
                     spawnParticleBurst(pacman_.position, {255, 215, 0});
                     checkCollisions();
                     if (phase_ != GamePhase::Playing)
@@ -1816,7 +1832,7 @@ void GameEngine::moveGhost(Ghost& ghost) {
             release = true;
 
         if (release) {
-            ghost.exitHouse();
+            ghost.exitHouse(getGlobalMode());
         } else {
             if (ghost.position.y == Config::GHOST_HOUSE_CENTER.y) {
                 ghost.position.y += 1;
@@ -1830,8 +1846,7 @@ void GameEngine::moveGhost(Ghost& ghost) {
     ghost.position = map_.wrapTunnel(ghost.position);
 
     if (ghost.mode == GhostMode::Eaten && ghost.hasReachedHouse()) {
-        ghost.reset();
-        ghost.mode = GhostMode::InHouse;
+        ghost.reviveInHouse(getGlobalMode());
         return;
     }
 
@@ -1929,7 +1944,10 @@ void GameEngine::checkCollisions() {
     }
 
     for (auto& g : ghosts_) {
-        if (g.position == pacman_.position || (g.prevPosition.x >= 0 && g.prevPosition == pacman_.position)) {
+        const bool direct_hit = (g.position == pacman_.position);
+        const bool swap_hit =
+            (g.prevPosition.x >= 0 && pacman_.prevPosition.x >= 0 && g.prevPosition == pacman_.position && pacman_.prevPosition == g.position);
+        if (direct_hit || swap_hit) {
             if (g.mode == GhostMode::Frightened) {
                 eatGhost(g);
             } else if (g.mode == GhostMode::Chase || g.mode == GhostMode::Scatter) {
@@ -2103,8 +2121,8 @@ void GameEngine::startGameOver() {
 void GameEngine::initRenderer() {
     render_width_  = term_size_.x;
     render_height_ = term_size_.y;
-    front_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
-    back_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
+    front_buffer_.assign(render_width_ * render_height_, Cell{});
+    back_buffer_.assign(render_width_ * render_height_, Cell{});
     output_batch_.reserve(65536);
     safeWrite(STDOUT_FILENO, "\033[2J\033[H\033[?25l", 14);
 }
@@ -2117,7 +2135,7 @@ void GameEngine::setCell(int row, int col, const Cell& cell) {
                 out.fg = applyGeneralTheme(out.fg, row, col);
             }
         }
-        back_buffer_[row][col] = out;
+        back_buffer_[row * render_width_ + col] = out;
     }
 }
 
@@ -2125,9 +2143,14 @@ void GameEngine::setTileGlyph(int row, int col, std::string glyph, Color fg, Col
     size_t w = displayWidth(glyph);
     Cell c1{.glyph = std::move(glyph), .fg = fg, .bg = bg, .bold = bold};
     setCell(row, col, c1);
-    for (size_t k = 1; k < w; ++k) {
-        Cell pad{.glyph = "", .fg = fg, .bg = bg, .bold = bold};
-        setCell(row, col + static_cast<int>(k), pad);
+    if (w < 2) {
+        Cell pad{.glyph = " ", .fg = fg, .bg = bg, .bold = bold};
+        setCell(row, col + 1, pad);
+    } else {
+        for (size_t k = 1; k < w; ++k) {
+            Cell pad{.glyph = "", .fg = fg, .bg = bg, .bold = bold};
+            setCell(row, col + static_cast<int>(k), pad);
+        }
     }
 }
 
@@ -2135,8 +2158,8 @@ void GameEngine::fillRow(int row, Color fg, Color bg) {
     if (row < 0 || row >= render_height_)
         return;
     Cell fill{.glyph = " ", .fg = fg, .bg = bg};
-    auto& row_buf = back_buffer_[row];
-    std::fill(row_buf.begin(), row_buf.end(), fill);
+    auto start = back_buffer_.begin() + row * render_width_;
+    std::fill(start, start + render_width_, fill);
 }
 
 size_t GameEngine::utf8SequenceLength(unsigned char c) noexcept {
@@ -2277,11 +2300,8 @@ void GameEngine::drawBox(int row, int col, int w, int h, Color fg, Color bg) {
 }
 
 void GameEngine::clearBuffer(Color bg) {
-    for (int r = 0; r < render_height_; ++r) {
-        for (int c = 0; c < render_width_; ++c) {
-            back_buffer_[r][c] = Cell{.glyph = " ", .fg = {255, 255, 255}, .bg = bg};
-        }
-    }
+    Cell empty_cell{.glyph = " ", .fg = {255, 255, 255}, .bg = bg};
+    std::fill(back_buffer_.begin(), back_buffer_.end(), empty_cell);
 }
 
 void GameEngine::presentFrame() {
@@ -2309,16 +2329,9 @@ void GameEngine::presentFrame() {
     bool style_initialized = false;
 
     auto appendInt = [&](int val) {
-        if (val >= 100) {
-            output_batch_ += (char)('0' + (val / 100));
-            output_batch_ += (char)('0' + ((val / 10) % 10));
-            output_batch_ += (char)('0' + (val % 10));
-        } else if (val >= 10) {
-            output_batch_ += (char)('0' + (val / 10));
-            output_batch_ += (char)('0' + (val % 10));
-        } else {
-            output_batch_ += (char)('0' + val);
-        }
+        char buf[16];
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), val);
+        output_batch_.append(buf, ptr - buf);
     };
 
     auto appendStyle = [&](const Color& fg, const Color& bg, bool bold, bool blink) {
@@ -2377,13 +2390,15 @@ void GameEngine::presentFrame() {
     int cursor_c = -1;
 
     for (int r = 0; r < render_height_; ++r) {
+        int row_offset = r * render_width_;
         for (int c = 0; c < render_width_; ++c) {
-            const Cell& back = back_buffer_[r][c];
+            size_t idx       = static_cast<size_t>(row_offset + c);
+            const Cell& back = back_buffer_[idx];
             if (back.glyph.empty()) {
-                front_buffer_[r][c] = back;
+                front_buffer_[idx] = back;
                 continue;
             }
-            const Cell& front = front_buffer_[r][c];
+            Cell& front = front_buffer_[idx];
 
             Color out_fg = back.fg;
             Color out_bg = back.bg;
@@ -2392,9 +2407,10 @@ void GameEngine::presentFrame() {
                 out_bg = {static_cast<uint8_t>(back.bg.r * fade), static_cast<uint8_t>(back.bg.g * fade), static_cast<uint8_t>(back.bg.b * fade)};
             }
 
-            Cell target_cell{back.glyph, out_fg, out_bg, back.bold, back.blink};
+            const bool is_dirty =
+                (back.glyph != front.glyph || out_fg != front.fg || out_bg != front.bg || back.bold != front.bold || back.blink != front.blink);
 
-            if (target_cell != front) {
+            if (is_dirty) {
                 if (cursor_r != r || cursor_c != c) {
                     appendPos(r + 1, c + 1);
                     cursor_r = r;
@@ -2407,7 +2423,12 @@ void GameEngine::presentFrame() {
 
                 output_batch_ += back.glyph;
                 cursor_c += static_cast<int>(displayWidth(back.glyph));
-                front_buffer_[r][c] = target_cell;
+
+                front.glyph = back.glyph;
+                front.fg    = out_fg;
+                front.bg    = out_bg;
+                front.bold  = back.bold;
+                front.blink = back.blink;
             }
         }
     }
@@ -3620,11 +3641,19 @@ void GameEngine::saveHighScore() {
         plaintext[i] ^= key[i % key.size()];
     }
 
+    std::string hex_encoded;
+    hex_encoded.reserve(plaintext.size() * 2);
+    constexpr char hex_chars[] = "0123456789ABCDEF";
+    for (unsigned char c : plaintext) {
+        hex_encoded.push_back(hex_chars[c >> 4]);
+        hex_encoded.push_back(hex_chars[c & 0x0F]);
+    }
+
     try {
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f)
             return;
-        f.write(plaintext.data(), static_cast<std::streamsize>(plaintext.size()));
+        f.write(hex_encoded.data(), static_cast<std::streamsize>(hex_encoded.size()));
     } catch (...) {}
 }
 
@@ -3643,7 +3672,7 @@ void GameEngine::loadHighScore() {
     if (!f.is_open())
         return;
 
-    const std::streamsize max_file = 4096;
+    const std::streamsize max_file = 8192;
     std::streamsize size           = f.tellg();
     if (size <= 0)
         return;
@@ -3651,9 +3680,39 @@ void GameEngine::loadHighScore() {
         size = max_file;
     f.seekg(0, std::ios::beg);
 
-    std::string ciphertext(static_cast<size_t>(size), '\0');
-    if (!f.read(&ciphertext[0], size))
+    std::string raw_content(static_cast<size_t>(size), '\0');
+    if (!f.read(&raw_content[0], size))
         return;
+
+    auto hexVal = [](char ch) noexcept -> int {
+        if (ch >= '0' && ch <= '9')
+            return ch - '0';
+        if (ch >= 'A' && ch <= 'F')
+            return ch - 'A' + 10;
+        if (ch >= 'a' && ch <= 'f')
+            return ch - 'a' + 10;
+        return -1;
+    };
+
+    std::string ciphertext;
+    bool is_hex = (raw_content.size() >= 2 && raw_content.size() % 2 == 0);
+    for (char ch : raw_content) {
+        if (hexVal(ch) < 0) {
+            is_hex = false;
+            break;
+        }
+    }
+
+    if (is_hex && !raw_content.empty()) {
+        ciphertext.reserve(raw_content.size() / 2);
+        for (size_t i = 0; i + 1 < raw_content.size(); i += 2) {
+            int hi = hexVal(raw_content[i]);
+            int lo = hexVal(raw_content[i + 1]);
+            ciphertext.push_back(static_cast<char>((hi << 4) | lo));
+        }
+    } else {
+        ciphertext = raw_content;
+    }
 
     std::string key = "PacTermWaelSecure2026";
     for (size_t i = 0; i < ciphertext.size(); ++i) {
@@ -5216,9 +5275,37 @@ void GameEngine::playSound(const std::string& name) {
     std::filesystem::path full_path = getSoundDirectory() / filename;
     std::string path_str            = full_path.string();
 
-    std::string cmd = "(paplay " + path_str + " || pw-play " + path_str + " || mpg123 " + path_str + " || mpv --no-video " + path_str + ") >/dev/null 2>&1 &";
-    auto res        = std::system(cmd.c_str());
-    (void)res;
+    {
+        std::lock_guard<std::mutex> lock(audio_mutex_);
+        if (audio_queue_.size() < 16) {
+            audio_queue_.push(path_str);
+        }
+    }
+    audio_cv_.notify_one();
+}
+
+void GameEngine::audioWorkerLoop() {
+    while (audio_running_.load(std::memory_order_acquire)) {
+        std::string path_str;
+        {
+            std::unique_lock<std::mutex> lock(audio_mutex_);
+            audio_cv_.wait(lock, [this] { return !audio_queue_.empty() || !audio_running_.load(std::memory_order_relaxed); });
+            if (!audio_running_.load(std::memory_order_relaxed) && audio_queue_.empty()) {
+                break;
+            }
+            if (!audio_queue_.empty()) {
+                path_str = std::move(audio_queue_.front());
+                audio_queue_.pop();
+            }
+        }
+
+        if (!path_str.empty()) {
+            std::string cmd = "(paplay '" + path_str + "' || pw-play '" + path_str + "' || aplay -q '" + path_str + "' || mpg123 -q '" + path_str +
+                              "' || mpv --no-video '" + path_str + "') >/dev/null 2>&1 &";
+            auto res        = std::system(cmd.c_str());
+            (void)res;
+        }
+    }
 }
 
 std::filesystem::path GameEngine::getSoundDirectory() {
