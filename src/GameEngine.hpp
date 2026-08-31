@@ -117,8 +117,8 @@ private:
 
     TerminalSession terminal_session_;
 
-    Vec2 term_size_        = {80, 24};
-    bool use_nerd_fonts_   = true;
+    Vec2 term_size_      = {80, 24};
+    bool use_nerd_fonts_ = true;
 
     int mouse_x_             = 0;
     int mouse_y_             = 0;
@@ -331,10 +331,10 @@ private:
 
     bool bonus_fruit_active_ = false;
     Vec2 bonus_fruit_pos_{};
-    TileType bonus_fruit_type_ = TileType::Cherry;
-    int bonus_fruit_timer_ms_ = 0;
-    int fruit_magnet_timer_ms_ = 0;
-    bool fruit_shield_active_ = false;
+    TileType bonus_fruit_type_        = TileType::Cherry;
+    int bonus_fruit_timer_ms_         = 0;
+    int fruit_magnet_timer_ms_        = 0;
+    bool fruit_shield_active_         = false;
     int fruit_double_bounty_timer_ms_ = 0;
     void spawnBonusFruit();
     void updateBonusFruit(int delta_ms);

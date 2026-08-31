@@ -769,15 +769,12 @@ public:
         std::array<std::array<bool, Config::MAP_WIDTH>, Config::MAP_HEIGHT> visited{};
         std::array<Vec2, Config::MAP_WIDTH * Config::MAP_HEIGHT> q{};
 
-        Vec2 clamped = {
-            std::clamp(start_pos.x, 0, Config::MAP_WIDTH - 1),
-            std::clamp(start_pos.y, 0, Config::MAP_HEIGHT - 1)
-        };
+        Vec2 clamped = {std::clamp(start_pos.x, 0, Config::MAP_WIDTH - 1), std::clamp(start_pos.y, 0, Config::MAP_HEIGHT - 1)};
 
         visited[clamped.y][clamped.x] = true;
-        size_t head = 0;
-        size_t tail = 0;
-        q[tail++] = clamped;
+        size_t head                   = 0;
+        size_t tail                   = 0;
+        q[tail++]                     = clamped;
 
         while (head < tail) {
             Vec2 curr = q[head++];

@@ -26,7 +26,8 @@ namespace {
     constexpr std::array<const char*, 6> kGlitchWallGlyphs  = {"┼", "╣", "┬", "╪", "╬", "┚"};
     constexpr std::array<const char*, 4> kGlitchBlockGlyphs = {"█", "▓", "▞", "▦"};
     constexpr std::array<const char*, 4> kGlitchAsciiGlyphs = {"§", "¶", "Ø", "‡"};
-    constexpr std::array<std::string_view, 11> kThemeNames  = {"Classic", "Cyan", "Green", "Pink", "Red", "Violet", "Ice", "Amber", "Rainbow", "Glitch", "PacTerm+"};
+    constexpr std::array<std::string_view, 11> kThemeNames  = {"Classic", "Cyan",  "Green",   "Pink",   "Red",     "Violet",
+                                                               "Ice",     "Amber", "Rainbow", "Glitch", "PacTerm+"};
 
     Color glitchRGB(uint64_t now) {
         const uint8_t r = (now / 100 % 2 == 0) ? 255 : 50;
@@ -225,7 +226,7 @@ namespace {
         static void install() noexcept {
             struct sigaction sa{};
             ::sigemptyset(&sa.sa_mask);
-            sa.sa_flags   = SA_RESTART;
+            sa.sa_flags = SA_RESTART;
 
             sa.sa_handler = &SignalManager::handleTermination;
             ::sigaction(SIGINT, &sa, nullptr);
@@ -243,13 +244,9 @@ namespace {
         }
 
     private:
-        static void handleTermination(int) noexcept {
-            shutdown_requested.store(true, std::memory_order_relaxed);
-        }
+        static void handleTermination(int) noexcept { shutdown_requested.store(true, std::memory_order_relaxed); }
 
-        static void handleResize(int) noexcept {
-            window_resized.store(true, std::memory_order_relaxed);
-        }
+        static void handleResize(int) noexcept { window_resized.store(true, std::memory_order_relaxed); }
 
         static void handleCrash(int sig) noexcept {
             if (auto* inst = GameEngine::TerminalSession::instance()) {
@@ -314,12 +311,8 @@ static Direction bfsNextDirection(const Map& map, Vec2 start, Vec2 target, Direc
     std::array<QueueNode, Config::MAP_WIDTH * Config::MAP_HEIGHT> queue{};
     std::array<bool, Config::MAP_WIDTH * Config::MAP_HEIGHT> visited{};
 
-    auto inBounds = [](Vec2 pos) noexcept {
-        return pos.x >= 0 && pos.x < Config::MAP_WIDTH && pos.y >= 0 && pos.y < Config::MAP_HEIGHT;
-    };
-    auto getVisited = [&](Vec2 pos) noexcept -> bool {
-        return !inBounds(pos) || visited[pos.y * Config::MAP_WIDTH + pos.x];
-    };
+    auto inBounds   = [](Vec2 pos) noexcept { return pos.x >= 0 && pos.x < Config::MAP_WIDTH && pos.y >= 0 && pos.y < Config::MAP_HEIGHT; };
+    auto getVisited = [&](Vec2 pos) noexcept -> bool { return !inBounds(pos) || visited[pos.y * Config::MAP_WIDTH + pos.x]; };
     auto setVisited = [&](Vec2 pos) noexcept {
         if (inBounds(pos)) {
             visited[pos.y * Config::MAP_WIDTH + pos.x] = true;
@@ -473,8 +466,8 @@ int GameEngine::readKey() {
     static size_t s_pos = 0;
 
     if (s_pos >= s_len) {
-        s_pos = 0;
-        s_len = 0;
+        s_pos     = 0;
+        s_len     = 0;
         ssize_t n = ::read(STDIN_FILENO, s_buf, sizeof(s_buf));
         if (n <= 0) {
             return -1;
@@ -490,13 +483,13 @@ int GameEngine::readKey() {
         }
         if (s_pos < s_len && s_buf[s_pos] == '[') {
             if (s_pos + 1 < s_len && s_buf[s_pos + 1] == '<') {
-                size_t p = s_pos + 2;
-                bool found = false;
+                size_t p     = s_pos + 2;
+                bool found   = false;
                 char term_ch = 0;
                 while (p < s_len && p - s_pos < 32) {
                     if (s_buf[p] == 'M' || s_buf[p] == 'm') {
                         term_ch = s_buf[p];
-                        found = true;
+                        found   = true;
                         break;
                     }
                     ++p;
@@ -692,7 +685,7 @@ void GameEngine::handleInput(int key) {
 
     case GamePhase::Stats:
         if (key == 27 || key == '\n' || key == '\r' || key == ' ') {
-            phase_ = GamePhase::MainMenu;
+            phase_             = GamePhase::MainMenu;
             main_menu_message_ = "";
             fade_animation_.fadeIn({255, 255, 255}, 300);
         }
@@ -1049,17 +1042,13 @@ void GameEngine::handleMouseClick() {
         bool big = render_width_ >= 66 && render_height_ >= 22;
 
         std::string install_text = isInstalledLocally() ? std::string(I18n::t("main_menu.uninstall")) : std::string(I18n::t("main_menu.install"));
-        std::string user_text    = big ? (std::string(I18n::t("main_menu.username")) + ":       " + username_) : (std::string(I18n::t("main_menu.username")) + ": " + username_);
+        std::string user_text =
+            big ? (std::string(I18n::t("main_menu.username")) + ":       " + username_) : (std::string(I18n::t("main_menu.username")) + ": " + username_);
 
         std::array<std::string, 7> opts = {
-            "  " + std::string(I18n::t("main_menu.start")),
-            "  " + user_text,
-            "  " + std::string(I18n::t("main_menu.stats")),
-            "  " + std::string(I18n::t("main_menu.redeem")),
-            "  " + install_text,
-            "  " + std::string(I18n::t("main_menu.settings")),
-            "  " + std::string(I18n::t("main_menu.quit"))
-        };
+            "  " + std::string(I18n::t("main_menu.start")),  "  " + user_text,    "  " + std::string(I18n::t("main_menu.stats")),
+            "  " + std::string(I18n::t("main_menu.redeem")), "  " + install_text, "  " + std::string(I18n::t("main_menu.settings")),
+            "  " + std::string(I18n::t("main_menu.quit"))};
 
         size_t max_w = 0;
         for (const auto& o : opts) {
@@ -1110,9 +1099,7 @@ void GameEngine::handleMouseClick() {
                     main_menu_message_  = "";
                     fade_animation_.fadeIn({255, 255, 255}, 300);
                     break;
-                case 6:
-                    running_ = false;
-                    break;
+                case 6: running_ = false; break;
                 }
                 return;
             }
@@ -1163,14 +1150,10 @@ void GameEngine::handleMouseClick() {
         break;
     }
     case GamePhase::Paused: {
-        std::array<std::string, 5> opts = {
-            "  " + std::string(I18n::t("pause.resume")),
-            "  " + std::string(I18n::t("pause.theme_info")),
-            "  " + std::string(I18n::t("pause.restart")),
-            "  " + std::string(I18n::t("pause.return_menu")),
-            "  " + std::string(I18n::t("pause.quit"))
-        };
-        int col_start = center_col - 12;
+        std::array<std::string, 5> opts = {"  " + std::string(I18n::t("pause.resume")), "  " + std::string(I18n::t("pause.theme_info")),
+                                           "  " + std::string(I18n::t("pause.restart")), "  " + std::string(I18n::t("pause.return_menu")),
+                                           "  " + std::string(I18n::t("pause.quit"))};
+        int col_start                   = center_col - 12;
         for (int i = 0; i < 5; ++i) {
             int row = center_row - 2 + i;
             if (hitText(row, col_start, opts[i], my, mx)) {
@@ -1209,7 +1192,7 @@ void GameEngine::handleMouseClick() {
         std::array<std::string, 6> opts = {"  UP:    [ " + getKeyName(custom_key_up_) + " ]",    "  DOWN:  [ " + getKeyName(custom_key_down_) + " ]",
                                            "  LEFT:  [ " + getKeyName(custom_key_left_) + " ]",  "  RIGHT: [ " + getKeyName(custom_key_right_) + " ]",
                                            "  PAUSE: [ " + getKeyName(custom_key_pause_) + " ]", "  " + std::string(I18n::t("key_config.save_back"))};
-        int col_start = center_col - 16;
+        int col_start                   = center_col - 16;
         for (int i = 0; i < 6; ++i) {
             int row = center_row - 4 + i;
             if (hitText(row, col_start, opts[i], my, mx)) {
@@ -1912,9 +1895,8 @@ void GameEngine::checkCollisions() {
             addScore(Config::SCORE_POWER_PELLET);
         }
         eatPowerPellet();
-    } else if (tile == TileType::Cherry || tile == TileType::Strawberry || tile == TileType::Orange ||
-               tile == TileType::Apple || tile == TileType::Melon || tile == TileType::Galaxian ||
-               tile == TileType::Bell || tile == TileType::Key) {
+    } else if (tile == TileType::Cherry || tile == TileType::Strawberry || tile == TileType::Orange || tile == TileType::Apple || tile == TileType::Melon ||
+               tile == TileType::Galaxian || tile == TileType::Bell || tile == TileType::Key) {
         map_.setTile(pacman_.position, TileType::Empty);
         eatBonusFruit(tile);
     } else if (tile == TileType::GoldenApple) {
@@ -2527,15 +2509,12 @@ void GameEngine::render() {
             int center_col    = render_width_ / 2;
             apply_menu_theme_ = true;
 
-            drawTitleBorderBox(center_row - 4, center_col - 15, 31, 9, " " + std::string(I18n::t("pause.title")) + " ", {0, 255, 255}, {255, 255, 0}, {0, 0, 0});
+            drawTitleBorderBox(center_row - 4, center_col - 15, 31, 9, " " + std::string(I18n::t("pause.title")) + " ", {0, 255, 255}, {255, 255, 0},
+                               {0, 0, 0});
 
-            std::array<std::string, 5> options = {
-                std::string(I18n::t("pause.resume")),
-                std::string(I18n::t("pause.theme_info")),
-                std::string(I18n::t("pause.restart")),
-                std::string(I18n::t("pause.return_menu")),
-                std::string(I18n::t("pause.quit"))
-            };
+            std::array<std::string, 5> options = {std::string(I18n::t("pause.resume")), std::string(I18n::t("pause.theme_info")),
+                                                  std::string(I18n::t("pause.restart")), std::string(I18n::t("pause.return_menu")),
+                                                  std::string(I18n::t("pause.quit"))};
 
             int block_left = center_col - 12;
 
@@ -2982,14 +2961,38 @@ void GameEngine::renderEntities(const Viewport* vpp) {
                 std::string glyph = "c";
                 Color fg          = {255, 60, 60};
                 switch (bonus_fruit_type_) {
-                case TileType::Cherry: glyph = use_nerd_fonts_ ? "󰄯" : "c"; fg = {255, 60, 60}; break;
-                case TileType::Strawberry: glyph = use_nerd_fonts_ ? "󰄯" : "s"; fg = {255, 105, 180}; break;
-                case TileType::Orange: glyph = use_nerd_fonts_ ? "" : "o"; fg = {255, 165, 0}; break;
-                case TileType::Apple: glyph = use_nerd_fonts_ ? "" : "a"; fg = {100, 255, 100}; break;
-                case TileType::Melon: glyph = use_nerd_fonts_ ? "󱁕" : "m"; fg = {150, 255, 150}; break;
-                case TileType::Galaxian: glyph = use_nerd_fonts_ ? "󰛡" : "g"; fg = {0, 220, 255}; break;
-                case TileType::Bell: glyph = use_nerd_fonts_ ? "󰂚" : "b"; fg = {255, 215, 0}; break;
-                case TileType::Key: glyph = use_nerd_fonts_ ? "󰌌" : "k"; fg = {255, 230, 100}; break;
+                case TileType::Cherry:
+                    glyph = use_nerd_fonts_ ? "󰄯" : "c";
+                    fg    = {255, 60, 60};
+                    break;
+                case TileType::Strawberry:
+                    glyph = use_nerd_fonts_ ? "󰄯" : "s";
+                    fg    = {255, 105, 180};
+                    break;
+                case TileType::Orange:
+                    glyph = use_nerd_fonts_ ? "" : "o";
+                    fg    = {255, 165, 0};
+                    break;
+                case TileType::Apple:
+                    glyph = use_nerd_fonts_ ? "" : "a";
+                    fg    = {100, 255, 100};
+                    break;
+                case TileType::Melon:
+                    glyph = use_nerd_fonts_ ? "󱁕" : "m";
+                    fg    = {150, 255, 150};
+                    break;
+                case TileType::Galaxian:
+                    glyph = use_nerd_fonts_ ? "󰛡" : "g";
+                    fg    = {0, 220, 255};
+                    break;
+                case TileType::Bell:
+                    glyph = use_nerd_fonts_ ? "󰂚" : "b";
+                    fg    = {255, 215, 0};
+                    break;
+                case TileType::Key:
+                    glyph = use_nerd_fonts_ ? "󰌌" : "k";
+                    fg    = {255, 230, 100};
+                    break;
                 default: break;
                 }
                 int r = vp.base_row + vy;
@@ -3001,8 +3004,7 @@ void GameEngine::renderEntities(const Viewport* vpp) {
 }
 
 void GameEngine::renderHUD() {
-    std::string score_str = username_.empty() ? I18n::format("hud.score_anon", score_)
-                                              : I18n::format("hud.score", username_, score_);
+    std::string score_str = username_.empty() ? I18n::format("hud.score_anon", score_) : I18n::format("hud.score", username_, score_);
     if (muted_) {
         score_str += std::string(I18n::t("hud.muted"));
     }
@@ -3071,7 +3073,8 @@ void GameEngine::renderHUD() {
 
     fillRow(render_height_ - 1, hud_fg, hud_bg);
     drawGradientString(render_height_ - 1, 2, lives_str, themeAccent(t, 0.0), themeAccent(t, 1.4), hud_bg);
-    drawGradientString(render_height_ - 1, render_width_ - static_cast<int>(displayWidth(level_str)) - 2, level_str, themePrimary(t, 0.0), themePrimary(t, 1.2), hud_bg);
+    drawGradientString(render_height_ - 1, render_width_ - static_cast<int>(displayWidth(level_str)) - 2, level_str, themePrimary(t, 0.0), themePrimary(t, 1.2),
+                       hud_bg);
 }
 
 void GameEngine::renderMainMenu() {
@@ -3101,11 +3104,11 @@ void GameEngine::renderMainMenu() {
             drawString(center_row - 5, center_col - 31, "  ╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝", getPrimaryGradient(5.0 * 0.3));
         } else {
             drawString(center_row - 10, center_col - 24, "#####    ###    ###   #####  #####  ####   #   #", getPrimaryGradient(0.0 * 0.3));
-            drawString(center_row - 9,  center_col - 24, "#    #  #   #  #   #    #    #      #   #  ## ##", getPrimaryGradient(1.0 * 0.3));
-            drawString(center_row - 8,  center_col - 24, "#####   #####  #        #    ####   ####   # # #", getPrimaryGradient(2.0 * 0.3));
-            drawString(center_row - 7,  center_col - 24, "#       #   #  #   #    #    #      # #    #   #", getPrimaryGradient(3.0 * 0.3));
-            drawString(center_row - 6,  center_col - 24, "#       #   #   ###     #    #####  #  ##  #   #", getPrimaryGradient(4.0 * 0.3));
-            drawString(center_row - 5,  center_col - 24, "                                                ", getPrimaryGradient(5.0 * 0.3));
+            drawString(center_row - 9, center_col - 24, "#    #  #   #  #   #    #    #      #   #  ## ##", getPrimaryGradient(1.0 * 0.3));
+            drawString(center_row - 8, center_col - 24, "#####   #####  #        #    ####   ####   # # #", getPrimaryGradient(2.0 * 0.3));
+            drawString(center_row - 7, center_col - 24, "#       #   #  #   #    #    #      # #    #   #", getPrimaryGradient(3.0 * 0.3));
+            drawString(center_row - 6, center_col - 24, "#       #   #   ###     #    #####  #  ##  #   #", getPrimaryGradient(4.0 * 0.3));
+            drawString(center_row - 5, center_col - 24, "                                                ", getPrimaryGradient(5.0 * 0.3));
         }
 
         menu_accent_           = true;
@@ -3155,15 +3158,9 @@ void GameEngine::renderMainMenu() {
         std::string install_text = isInstalledLocally() ? std::string(I18n::t("main_menu.uninstall")) : std::string(I18n::t("main_menu.install"));
         std::string user_text    = std::string(I18n::t("main_menu.username")) + ":       " + username_;
 
-        std::array<std::string, 7> main_options = {
-            std::string(I18n::t("main_menu.start")),
-            user_text,
-            std::string(I18n::t("main_menu.stats")),
-            std::string(I18n::t("main_menu.redeem")),
-            install_text,
-            std::string(I18n::t("main_menu.settings")),
-            std::string(I18n::t("main_menu.quit"))
-        };
+        std::array<std::string, 7> main_options = {std::string(I18n::t("main_menu.start")),  user_text,    std::string(I18n::t("main_menu.stats")),
+                                                   std::string(I18n::t("main_menu.redeem")), install_text, std::string(I18n::t("main_menu.settings")),
+                                                   std::string(I18n::t("main_menu.quit"))};
 
         size_t max_w = 0;
         for (const auto& o : main_options) {
@@ -3226,15 +3223,9 @@ void GameEngine::renderMainMenu() {
         std::string install_text = isInstalledLocally() ? std::string(I18n::t("main_menu.uninstall")) : std::string(I18n::t("main_menu.install"));
         std::string user_text    = std::string(I18n::t("main_menu.username")) + ": " + username_;
 
-        std::array<std::string, 7> main_options = {
-            std::string(I18n::t("main_menu.start")),
-            user_text,
-            std::string(I18n::t("main_menu.stats")),
-            std::string(I18n::t("main_menu.redeem")),
-            install_text,
-            std::string(I18n::t("main_menu.settings")),
-            std::string(I18n::t("main_menu.quit"))
-        };
+        std::array<std::string, 7> main_options = {std::string(I18n::t("main_menu.start")),  user_text,    std::string(I18n::t("main_menu.stats")),
+                                                   std::string(I18n::t("main_menu.redeem")), install_text, std::string(I18n::t("main_menu.settings")),
+                                                   std::string(I18n::t("main_menu.quit"))};
 
         size_t max_w = 0;
         for (const auto& o : main_options) {
@@ -3292,16 +3283,15 @@ void GameEngine::renderSettings() {
         bool is_kv = true;
     };
 
-    const std::array<SettingItem, 8> items = {{
-        {std::string(I18n::t("settings.general_theme")), std::string(theme_names[selected_general_theme_]), true},
-        {std::string(I18n::t("settings.language")), std::string(I18n::getCurrentLanguageName()), true},
-        {std::string(I18n::t("settings.nerd_fonts")), std::string(use_nerd_fonts_ ? I18n::t("settings.on") : I18n::t("settings.off")), true},
-        {std::string(I18n::t("settings.sound")), std::string(muted_ ? I18n::t("settings.off") : I18n::t("settings.on")), true},
-        {std::string(I18n::t("settings.pacman_theme")), std::string(theme_names[selected_pacman_color_]), true},
-        {std::string(I18n::t("settings.key_config")), "", false},
-        {std::string(I18n::t("settings.reset")), "", false},
-        {std::string(I18n::t("settings.back")), "", false}
-    }};
+    const std::array<SettingItem, 8> items = {
+        {{std::string(I18n::t("settings.general_theme")), std::string(theme_names[selected_general_theme_]), true},
+         {std::string(I18n::t("settings.language")), std::string(I18n::getCurrentLanguageName()), true},
+         {std::string(I18n::t("settings.nerd_fonts")), std::string(use_nerd_fonts_ ? I18n::t("settings.on") : I18n::t("settings.off")), true},
+         {std::string(I18n::t("settings.sound")), std::string(muted_ ? I18n::t("settings.off") : I18n::t("settings.on")), true},
+         {std::string(I18n::t("settings.pacman_theme")), std::string(theme_names[selected_pacman_color_]), true},
+         {std::string(I18n::t("settings.key_config")), "", false},
+         {std::string(I18n::t("settings.reset")), "", false},
+         {std::string(I18n::t("settings.back")), "", false}}};
 
     size_t max_label_w = 15;
     for (size_t i = 0; i < 5; ++i) {
@@ -3311,7 +3301,7 @@ void GameEngine::renderSettings() {
     std::array<std::string, 8> options;
     for (size_t i = 0; i < 8; ++i) {
         if (items[i].is_kv) {
-            size_t lw = displayWidth(items[i].label);
+            size_t lw  = displayWidth(items[i].label);
             size_t pad = (max_label_w > lw) ? (max_label_w - lw) : 0;
             options[i] = items[i].label + ":" + std::string(pad + 2, ' ') + items[i].value;
         } else {
@@ -3320,7 +3310,7 @@ void GameEngine::renderSettings() {
     }
 
     std::string title_str = " " + std::string(I18n::t("settings.title")) + " ";
-    int title_x = center_col - static_cast<int>(displayWidth(title_str)) / 2;
+    int title_x           = center_col - static_cast<int>(displayWidth(title_str)) / 2;
 
     if (render_width_ >= 66 && render_height_ >= 26) {
         drawDoubleBorderBox(center_row - 6, center_col - 22, 44, 12, {0, 255, 255}, {0, 0, 0});
@@ -3514,26 +3504,12 @@ void GameEngine::renderStats() {
         std::string title_str = " " + std::string(I18n::t("stats.title")) + " ";
         drawString(center_row - 7, center_col - static_cast<int>(displayWidth(title_str)) / 2, title_str, {255, 255, 0});
 
-        std::string labels[8] = {
-            std::string(I18n::t("stats.high_score")),
-            std::string(I18n::t("stats.games_played")),
-            std::string(I18n::t("stats.ghosts_eaten")),
-            std::string(I18n::t("stats.deaths")),
-            std::string(I18n::t("stats.best_level")),
-            std::string(I18n::t("stats.dots_eaten")),
-            std::string(I18n::t("stats.power_pellets")),
-            std::string(I18n::t("stats.time_played"))
-        };
-        std::string values[8] = {
-            std::to_string(high_score_),
-            std::to_string(games_played_),
-            std::to_string(ghosts_eaten_),
-            std::to_string(deaths_),
-            std::to_string(max_unlocked_level_),
-            std::to_string(dots_eaten_),
-            std::to_string(power_pellets_),
-            time_buf
-        };
+        std::string labels[8] = {std::string(I18n::t("stats.high_score")),    std::string(I18n::t("stats.games_played")),
+                                 std::string(I18n::t("stats.ghosts_eaten")),  std::string(I18n::t("stats.deaths")),
+                                 std::string(I18n::t("stats.best_level")),    std::string(I18n::t("stats.dots_eaten")),
+                                 std::string(I18n::t("stats.power_pellets")), std::string(I18n::t("stats.time_played"))};
+        std::string values[8] = {std::to_string(high_score_),         std::to_string(games_played_), std::to_string(ghosts_eaten_),  std::to_string(deaths_),
+                                 std::to_string(max_unlocked_level_), std::to_string(dots_eaten_),   std::to_string(power_pellets_), time_buf};
 
         int label_rows[4] = {center_row - 5, center_row - 2, center_row + 1, center_row + 4};
         int col_left      = center_col - 22;
@@ -3576,7 +3552,10 @@ void GameEngine::renderStats() {
             Color lc = letter_hunt_.isCollected(i) ? Color{255, 215, 0} : Color{70, 70, 75};
             drawString(center_row + 3, letters_col + i, std::string(1, "PACTERM"[i]), lc, {0, 0, 0}, false);
         }
-        drawString(center_row + 4, center_col - 12, std::string(I18n::t("stats.deaths")) + ": " + std::to_string(deaths_) + "   " + std::string(I18n::t("stats.time_played")) + ": " + std::to_string(total_sec) + "s", {180, 180, 200});
+        drawString(center_row + 4, center_col - 12,
+                   std::string(I18n::t("stats.deaths")) + ": " + std::to_string(deaths_) + "   " + std::string(I18n::t("stats.time_played")) + ": " +
+                       std::to_string(total_sec) + "s",
+                   {180, 180, 200});
     }
 }
 
@@ -3584,10 +3563,10 @@ void GameEngine::renderGameOver() {
     int center_row = render_height_ / 2;
     int center_col = render_width_ / 2;
 
-    std::string go_text = std::string(I18n::t("game.game_over"));
+    std::string go_text    = std::string(I18n::t("game.game_over"));
     std::string retry_text = std::string(I18n::t("game.press_continue"));
-    int box_w = std::max(static_cast<int>(displayWidth(retry_text)) + 4, 33);
-    int box_h = 7;
+    int box_w              = std::max(static_cast<int>(displayWidth(retry_text)) + 4, 33);
+    int box_h              = 7;
 
     drawDoubleBorderBox(center_row - 3, center_col - box_w / 2, box_w, box_h, {255, 0, 0}, {0, 0, 0});
     drawString(center_row - 1, center_col - static_cast<int>(displayWidth(go_text)) / 2, go_text, {255, 0, 0});
@@ -3599,7 +3578,7 @@ void GameEngine::renderGetReady() {
     int center_col = render_width_ / 2;
 
     std::string ready_text = std::string(I18n::t("game.ready"));
-    int box_w = std::max(static_cast<int>(displayWidth(ready_text)) + 6, 16);
+    int box_w              = std::max(static_cast<int>(displayWidth(ready_text)) + 6, 16);
 
     drawDoubleBorderBox(center_row - 2, center_col - box_w / 2, box_w, 5, {255, 255, 0}, {0, 0, 0});
     drawString(center_row, center_col - static_cast<int>(displayWidth(ready_text)) / 2, ready_text, {255, 255, 0});
@@ -3697,8 +3676,8 @@ void GameEngine::loadHighScore() {
     char username_buf[128]    = "";
 
     int read_count =
-        std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %31s %127[^\r\n]", &high_score_, &temp_muted, &temp_nf, &k_up,
-                    &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games, &temp_dots,
+        std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %31s %127[^\r\n]", &high_score_, &temp_muted, &temp_nf,
+                    &k_up, &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games, &temp_dots,
                     &temp_ghosts, &temp_deaths, &temp_power, &temp_time, &temp_letter_mask, &temp_pacterm_unlocked, lang_buf, username_buf);
 
     if (read_count >= 22) {
@@ -3706,13 +3685,14 @@ void GameEngine::loadHighScore() {
     } else {
         temp_letter_mask      = 0;
         temp_pacterm_unlocked = 0;
-        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf,
-                                 &k_up, &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games,
-                                 &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, &temp_letter_mask, &temp_pacterm_unlocked, username_buf);
+        read_count =
+            std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf,
+                        &k_up, &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games, &temp_dots,
+                        &temp_ghosts, &temp_deaths, &temp_power, &temp_time, &temp_letter_mask, &temp_pacterm_unlocked, username_buf);
         if (read_count < 21) {
-            read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf,
-                                     &k_up, &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games,
-                                     &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, username_buf);
+            read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted,
+                                     &temp_nf, &k_up, &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme,
+                                     &temp_games, &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, username_buf);
         }
     }
 
@@ -4216,7 +4196,7 @@ std::vector<Vec2> GameEngine::reachableTiles() const {
     std::array<std::array<bool, Config::MAP_WIDTH>, Config::MAP_HEIGHT> visited{};
     std::array<Vec2, Config::MAP_WIDTH * Config::MAP_HEIGHT> q{};
 
-    Vec2 start = map_.findNearestWalkable(pacman_.position);
+    Vec2 start                = map_.findNearestWalkable(pacman_.position);
     visited[start.y][start.x] = true;
 
     size_t head = 0;
@@ -4224,7 +4204,7 @@ std::vector<Vec2> GameEngine::reachableTiles() const {
     q[tail++]   = start;
 
     while (head < tail) {
-        Vec2 curr = q[head++];
+        Vec2 curr               = q[head++];
         bool inside_ghost_house = (curr.y >= 12 && curr.y <= 16 && curr.x >= 10 && curr.x <= 17);
         if (!inside_ghost_house && map_.isWalkable(curr)) {
             out.push_back(curr);
@@ -4749,12 +4729,11 @@ void GameEngine::renderLevelSelector() {
             bool hovered = isMouseHovering(row, col - 4, label);
 
             if (lvl == 20) {
-                Color norm_c = selected ? (locked ? Color{180, 180, 180} : Color{255, 255, 255})
-                                        : (locked ? Color{60, 60, 60} : Color{255, 255, 0});
+                Color norm_c = selected ? (locked ? Color{180, 180, 180} : Color{255, 255, 255}) : (locked ? Color{60, 60, 60} : Color{255, 255, 0});
                 if (hovered && !selected) {
                     norm_c = locked ? Color{140, 140, 140} : Color{0, 255, 255};
                 }
-                Color gl_c = glitchRGB(current_time_ms_);
+                Color gl_c           = glitchRGB(current_time_ms_);
                 const auto& g_glyphs = use_nerd_fonts_ ? kGlitchBlockGlyphs : kGlitchAsciiGlyphs;
                 std::string g_digit  = ((current_time_ms_ / 150) % 3 == 0) ? (locked ? "X" : "0") : g_glyphs[(current_time_ms_ / 100) % 4];
                 std::string g_brk    = ((current_time_ms_ / 200) % 4 == 0) ? "]" : g_glyphs[(current_time_ms_ / 100 + 1) % 4];
@@ -4765,14 +4744,14 @@ void GameEngine::renderLevelSelector() {
                 drawString(row, col - 4, pfx, norm_c, {0, 0, 0}, selected || hovered);
                 drawString(row, col - 2, "[", norm_c, {0, 0, 0}, selected || hovered);
                 drawString(row, col - 1, d1, norm_c, {0, 0, 0}, selected || hovered);
-                drawString(row, col,     g_digit, gl_c, {0, 0, 0}, selected || hovered);
+                drawString(row, col, g_digit, gl_c, {0, 0, 0}, selected || hovered);
                 drawString(row, col + 1, g_brk, gl_c, {0, 0, 0}, selected || hovered);
                 drawString(row, col + 2, sfx, gl_c, {0, 0, 0}, selected || hovered);
             } else if (lvl == 30) {
-                Color gl_c1 = glitchRGB(current_time_ms_);
-                Color gl_c2 = glitchRGB(current_time_ms_ + 60);
-                Color gl_c3 = glitchRGB(current_time_ms_ + 120);
-                Color gl_c4 = glitchRGB(current_time_ms_ + 180);
+                Color gl_c1          = glitchRGB(current_time_ms_);
+                Color gl_c2          = glitchRGB(current_time_ms_ + 60);
+                Color gl_c3          = glitchRGB(current_time_ms_ + 120);
+                Color gl_c4          = glitchRGB(current_time_ms_ + 180);
                 const auto& g_glyphs = use_nerd_fonts_ ? kGlitchBlockGlyphs : kGlitchAsciiGlyphs;
 
                 std::string g_brk1 = ((current_time_ms_ / 200) % 4 == 0) ? "[" : g_glyphs[(current_time_ms_ / 100) % 4];
@@ -4780,15 +4759,14 @@ void GameEngine::renderLevelSelector() {
                 std::string g_d2   = ((current_time_ms_ / 150) % 3 == 0) ? (locked ? "X" : "0") : g_glyphs[(current_time_ms_ / 100 + 2) % 4];
                 std::string g_brk2 = ((current_time_ms_ / 200) % 4 == 0) ? "]" : g_glyphs[(current_time_ms_ / 100 + 3) % 4];
 
-                Color pfx_c = selected ? (locked ? Color{180, 180, 180} : Color{255, 255, 255})
-                                       : (hovered ? Color{0, 255, 255} : gl_c1);
+                Color pfx_c     = selected ? (locked ? Color{180, 180, 180} : Color{255, 255, 255}) : (hovered ? Color{0, 255, 255} : gl_c1);
                 std::string pfx = (selected || hovered) ? "> " : "  ";
                 std::string sfx = (selected || hovered) ? " <" : "  ";
 
                 drawString(row, col - 4, pfx, pfx_c, {0, 0, 0}, selected || hovered);
                 drawString(row, col - 2, g_brk1, gl_c1, {0, 0, 0}, selected || hovered);
                 drawString(row, col - 1, g_d1, gl_c2, {0, 0, 0}, selected || hovered);
-                drawString(row, col,     g_d2, gl_c3, {0, 0, 0}, selected || hovered);
+                drawString(row, col, g_d2, gl_c3, {0, 0, 0}, selected || hovered);
                 drawString(row, col + 1, g_brk2, gl_c4, {0, 0, 0}, selected || hovered);
                 drawString(row, col + 2, sfx, pfx_c, {0, 0, 0}, selected || hovered);
             } else if (selected) {
@@ -4798,8 +4776,8 @@ void GameEngine::renderLevelSelector() {
                 }
                 drawString(row, col - 4, label, sel_color, {0, 0, 0}, true);
             } else if (hovered) {
-                Color hov_color = locked ? Color{140, 140, 140} : Color{0, 255, 255};
-                std::string num = (lvl < 10) ? "0" + std::to_string(lvl) : std::to_string(lvl);
+                Color hov_color       = locked ? Color{140, 140, 140} : Color{0, 255, 255};
+                std::string num       = (lvl < 10) ? "0" + std::to_string(lvl) : std::to_string(lvl);
                 std::string hov_label = locked ? "> [XX] <" : "> [" + num + "] <";
                 drawString(row, col - 4, hov_label, hov_color, {0, 0, 0}, true);
             } else {
@@ -4808,7 +4786,7 @@ void GameEngine::renderLevelSelector() {
         }
     }
 
-    int row_back = center_row + 4;
+    int row_back          = center_row + 4;
     std::string back_base = "[ " + std::string(I18n::t("level_select.back")) + " ]";
     std::string back_text;
     Color back_color = {150, 150, 150};
@@ -4840,7 +4818,7 @@ void GameEngine::renderKeyConfig() {
     clearBuffer({0, 0, 0});
 
     std::string press_key_text = std::string(I18n::t("key_config.press_key"));
-    std::string up_name   = is_binding_ ? (binding_action_ == GameAction::Up ? press_key_text : getKeyName(custom_key_up_)) : getKeyName(custom_key_up_);
+    std::string up_name        = is_binding_ ? (binding_action_ == GameAction::Up ? press_key_text : getKeyName(custom_key_up_)) : getKeyName(custom_key_up_);
     std::string down_name = is_binding_ ? (binding_action_ == GameAction::Down ? press_key_text : getKeyName(custom_key_down_)) : getKeyName(custom_key_down_);
     std::string left_name = is_binding_ ? (binding_action_ == GameAction::Left ? press_key_text : getKeyName(custom_key_left_)) : getKeyName(custom_key_left_);
     std::string right_name =
@@ -4848,14 +4826,8 @@ void GameEngine::renderKeyConfig() {
     std::string pause_name =
         is_binding_ ? (binding_action_ == GameAction::Pause ? press_key_text : getKeyName(custom_key_pause_)) : getKeyName(custom_key_pause_);
 
-    std::array<std::string, 6> options = {
-        "UP:    [ " + up_name + " ]",
-        "DOWN:  [ " + down_name + " ]",
-        "LEFT:  [ " + left_name + " ]",
-        "RIGHT: [ " + right_name + " ]",
-        "PAUSE: [ " + pause_name + " ]",
-        std::string(I18n::t("key_config.save_back"))
-    };
+    std::array<std::string, 6> options = {"UP:    [ " + up_name + " ]",    "DOWN:  [ " + down_name + " ]",  "LEFT:  [ " + left_name + " ]",
+                                          "RIGHT: [ " + right_name + " ]", "PAUSE: [ " + pause_name + " ]", std::string(I18n::t("key_config.save_back"))};
 
     drawTitleBorderBox(center_row - 6, center_col - 20, 40, 11, " " + std::string(I18n::t("key_config.title")) + " ", {0, 255, 255}, {255, 255, 0}, {0, 0, 0});
 
@@ -5405,8 +5377,7 @@ void GameEngine::eatBonusFruit(TileType type) {
         for (auto& g : ghosts_) {
             if (g.mode != GhostMode::Eaten && g.mode != GhostMode::InHouse) {
                 // If Pac-Man is right near the house exit, keep ghosts safely inside the house
-                if (std::abs(pacman_.position.x - Config::GHOST_HOUSE_EXIT.x) <= 1 &&
-                    std::abs(pacman_.position.y - Config::GHOST_HOUSE_EXIT.y) <= 1) {
+                if (std::abs(pacman_.position.x - Config::GHOST_HOUSE_EXIT.x) <= 1 && std::abs(pacman_.position.y - Config::GHOST_HOUSE_EXIT.y) <= 1) {
                     g.position = Config::GHOST_HOUSE_CENTER;
                     g.mode     = GhostMode::InHouse;
                 } else {
@@ -5460,8 +5431,8 @@ void GameEngine::renderThemeInfo() {
 
     drawTitleBorderBox(top_row, left_col, box_w, box_h, " " + std::string(I18n::t("theme_info.title")) + " ", lvl_accent, lvl_primary, {0, 0, 0});
 
-    int cur_y       = top_row + 2;
-    int detail_x    = left_col + 3;
+    int cur_y            = top_row + 2;
+    int detail_x         = left_col + 3;
     size_t max_content_w = (box_w > 7) ? static_cast<size_t>(box_w - 7) : 0;
 
     std::string theme_name{kThemeNames[theme_idx]};
