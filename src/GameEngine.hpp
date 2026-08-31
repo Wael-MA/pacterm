@@ -369,6 +369,7 @@ private:
     GameAction binding_action_ = GameAction::None;
 
     void generateSounds();
+    void preloadAssets();
     void playSound(const std::string& name);
     std::filesystem::path getSoundDirectory();
     void audioWorkerLoop();

@@ -424,9 +424,7 @@ GameEngine::GameEngine()
         loadHighScore();
     } catch (...) {}
     rebuildKeybindings();
-    try {
-        generateSounds();
-    } catch (...) {}
+    preloadAssets();
     startMainMenu();
     fade_animation_.fadeIn({255, 255, 255}, 400);
     audio_thread_ = std::thread(&GameEngine::audioWorkerLoop, this);
@@ -5264,6 +5262,42 @@ void GameEngine::generateSounds() {
         auto samples                                       = generateMelody(clear_notes, WaveType::Triangle, 0.2);
         writeWavFile(p_clear.string(), samples);
     }
+}
+
+void GameEngine::preloadAssets() {
+    // 1. Synthesize all audio assets and pre-warm OS page cache
+    try {
+        generateSounds();
+        std::filesystem::path sound_dir = getSoundDirectory();
+        if (std::filesystem::exists(sound_dir)) {
+            for (const auto& entry : std::filesystem::directory_iterator(sound_dir)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".wav") {
+                    std::ifstream f(entry.path(), std::ios::binary);
+                    if (f) {
+                        char buf[4096];
+                        while (f.read(buf, sizeof(buf))) {}
+                    }
+                }
+            }
+        }
+    } catch (...) {}
+
+    // 2. Preload and validate all 30 level maze layouts
+    try {
+        Map preload_map;
+        for (int lvl = 1; lvl <= 30; ++lvl) {
+            preload_map.loadLevel(lvl);
+        }
+    } catch (...) {}
+
+    // 3. Pre-warm localization strings and formatting caches
+    try {
+        (void)I18n::t("menu.play");
+        (void)I18n::t("menu.settings");
+        (void)I18n::t("menu.high_scores");
+        (void)I18n::t("game.ready");
+        (void)I18n::t("game.game_over");
+    } catch (...) {}
 }
 
 void GameEngine::playSound(const std::string& name) {

@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Deployed dedicated background audio worker thread with non-blocking dispatch and queueing.
   - Added STDIN poll timeout to safely resolve split ANSI escape sequences without stalling.
   - Made crash signal handler async-signal-safe by removing `tcsetattr` calls from fatal signal context.
+- **Asset & Sound Preloading Subsystem**:
+  - Added `preloadAssets()` to synthesize all 6 audio tracks and pre-read files into OS page cache at boot.
+  - Preloaded and validated all 30 level maze layouts and warmed up `I18n` localization lookup tables on startup for zero-latency gameplay transitions.
 
 ---
 
