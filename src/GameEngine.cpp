@@ -14,9 +14,7 @@
 #include <cmath>
 #include <csignal>
 #include <poll.h>
-#include <print>
 #include <utility>
-#include <flat_map>
 
 namespace {
     constexpr std::string_view kEnterAltScreen = "\033[?1049h\033[2J\033[H\033[?25l";
@@ -445,9 +443,9 @@ GameEngine::~GameEngine() {
         } else {
             c = themePrimary(selected_general_theme_, static_cast<double>(i) * 0.15);
         }
-        std::print("\033[38;2;{};{};{}m{}", c.r, c.g, c.b, message[i]);
+        std::printf("\033[38;2;%u;%u;%um%c", c.r, c.g, c.b, message[i]);
     }
-    std::println("\033[0m");
+    std::fputs("\033[0m\n", stdout);
     std::fflush(stdout);
 }
 

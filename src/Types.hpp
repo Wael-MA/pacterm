@@ -185,8 +185,6 @@ namespace Config {
 [[nodiscard]] constexpr Vec2 clampToMap(Vec2 v) noexcept {
     v.x = std::clamp(v.x, 0, Config::MAP_WIDTH - 1);
     v.y = std::clamp(v.y, 0, Config::MAP_HEIGHT - 1);
-    [[assume(v.x >= 0 && v.x < Config::MAP_WIDTH)]];
-    [[assume(v.y >= 0 && v.y < Config::MAP_HEIGHT)]];
     return v;
 }
 
