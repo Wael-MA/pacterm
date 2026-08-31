@@ -13,3 +13,8 @@ add_executable(pacterm
 
 target_include_directories(pacterm PRIVATE src)
 target_compile_options(pacterm PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+include(GNUInstallDirs)
+install(TARGETS pacterm DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES pacterm.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES img/PacTermIcon.png DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps RENAME pacterm.png)
