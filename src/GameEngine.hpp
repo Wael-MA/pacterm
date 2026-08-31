@@ -73,8 +73,8 @@ struct AnimationController {
 class GameEngine {
 public:
     struct TerminalSession {
-        struct termios orig_termios{};
-        bool raw_active = false;
+        struct termios orig_termios = {};
+        bool raw_active             = false;
         TerminalSession();
         ~TerminalSession() noexcept;
         void restore() noexcept;

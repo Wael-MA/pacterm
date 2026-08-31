@@ -227,7 +227,7 @@ namespace {
         static inline std::atomic<bool> window_resized{false};
 
         static void install() noexcept {
-            struct sigaction sa{};
+            struct sigaction sa = {};
             ::sigemptyset(&sa.sa_mask);
             sa.sa_flags = SA_RESTART;
 
@@ -255,7 +255,7 @@ namespace {
             if (auto* inst = GameEngine::TerminalSession::instance()) {
                 inst->restore();
             }
-            struct sigaction sa{};
+            struct sigaction sa = {};
             ::sigemptyset(&sa.sa_mask);
             sa.sa_handler = SIG_DFL;
             ::sigaction(sig, &sa, nullptr);
