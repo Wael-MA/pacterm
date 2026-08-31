@@ -21,6 +21,11 @@ namespace {
     constexpr std::string_view kEnterMouse     = "\033[?1000h\033[?1002h\033[?1003h\033[?1006h";
     constexpr std::string_view kLeaveAltScreen = "\033[0m\033[?25h\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1049l";
 
+    inline void safeWrite(int fd, const void* buf, size_t count) noexcept {
+        auto res = ::write(fd, buf, count);
+        (void)res;
+    }
+
     constexpr std::array<const char*, 6> kGlitchWallGlyphs  = {"┼", "╣", "┬", "╪", "╬", "┚"};
     constexpr std::array<const char*, 4> kGlitchBlockGlyphs = {"█", "▓", "▞", "▦"};
     constexpr std::array<const char*, 4> kGlitchAsciiGlyphs = {"§", "¶", "Ø", "‡"};
@@ -278,8 +283,8 @@ GameEngine::TerminalSession::TerminalSession() {
             raw_active = true;
         }
     }
-    (void)::write(STDOUT_FILENO, kEnterAltScreen.data(), kEnterAltScreen.size());
-    (void)::write(STDOUT_FILENO, kEnterMouse.data(), kEnterMouse.size());
+    safeWrite(STDOUT_FILENO, kEnterAltScreen.data(), kEnterAltScreen.size());
+    safeWrite(STDOUT_FILENO, kEnterMouse.data(), kEnterMouse.size());
     SignalManager::install();
 }
 
@@ -292,7 +297,7 @@ GameEngine::TerminalSession::~TerminalSession() noexcept {
 
 void GameEngine::TerminalSession::restore() noexcept {
     if (raw_active) {
-        (void)::write(STDOUT_FILENO, kLeaveAltScreen.data(), kLeaveAltScreen.size());
+        safeWrite(STDOUT_FILENO, kLeaveAltScreen.data(), kLeaveAltScreen.size());
         (void)::tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
         raw_active = false;
     }
@@ -2101,7 +2106,7 @@ void GameEngine::initRenderer() {
     front_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
     back_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
     output_batch_.reserve(65536);
-    (void)::write(STDOUT_FILENO, "\033[2J\033[H\033[?25l", 14);
+    safeWrite(STDOUT_FILENO, "\033[2J\033[H\033[?25l", 14);
 }
 
 void GameEngine::setCell(int row, int col, const Cell& cell) {
@@ -2408,7 +2413,7 @@ void GameEngine::presentFrame() {
     }
 
     if (!output_batch_.empty()) {
-        ::write(STDOUT_FILENO, output_batch_.data(), output_batch_.size());
+        safeWrite(STDOUT_FILENO, output_batch_.data(), output_batch_.size());
         static_cast<void>(::fflush(stdout));
     }
 }
@@ -5212,7 +5217,8 @@ void GameEngine::playSound(const std::string& name) {
     std::string path_str            = full_path.string();
 
     std::string cmd = "(paplay " + path_str + " || pw-play " + path_str + " || mpg123 " + path_str + " || mpv --no-video " + path_str + ") >/dev/null 2>&1 &";
-    std::system(cmd.c_str());
+    auto res        = std::system(cmd.c_str());
+    (void)res;
 }
 
 std::filesystem::path GameEngine::getSoundDirectory() {
