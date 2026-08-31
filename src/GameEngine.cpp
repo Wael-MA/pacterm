@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.8
+// pacterm v1.4.0
 #include "GameEngine.hpp"
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -21,7 +21,7 @@
 namespace {
     constexpr std::string_view kEnterAltScreen = "\033[?1049h\033[2J\033[H\033[?25l";
     constexpr std::string_view kEnterMouse     = "\033[?1000h\033[?1002h\033[?1003h\033[?1006h";
-    constexpr std::string_view kLeaveAltScreen = "\033[?25h\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1049l";
+    constexpr std::string_view kLeaveAltScreen = "\033[0m\033[?25h\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1049l";
 
     constexpr std::array<const char*, 6> kGlitchWallGlyphs  = {"┼", "╣", "┬", "╪", "╬", "┚"};
     constexpr std::array<const char*, 4> kGlitchBlockGlyphs = {"█", "▓", "▞", "▦"};
@@ -251,11 +251,15 @@ namespace {
             window_resized.store(true, std::memory_order_relaxed);
         }
 
-        static void handleCrash(int) noexcept {
+        static void handleCrash(int sig) noexcept {
             if (auto* inst = GameEngine::TerminalSession::instance()) {
                 inst->restore();
             }
-            std::quick_exit(128);
+            struct sigaction sa{};
+            ::sigemptyset(&sa.sa_mask);
+            sa.sa_handler = SIG_DFL;
+            ::sigaction(sig, &sa, nullptr);
+            ::raise(sig);
         }
     };
 } // namespace
@@ -418,6 +422,7 @@ GameEngine::GameEngine()
     rng_.seed(seed);
 
     SignalManager::install();
+    I18n::initFromLocale();
     queryTerminalSize();
     initRenderer();
     try {
@@ -639,9 +644,9 @@ void GameEngine::handleInput(int key) {
             main_menu_message_ = "";
             fade_animation_.fadeIn({255, 255, 255}, 300);
         } else if (action == GameAction::Up) {
-            settings_selection_ = (settings_selection_ - 1 + 7) % 7;
+            settings_selection_ = (settings_selection_ - 1 + 8) % 8;
         } else if (action == GameAction::Down) {
-            settings_selection_ = (settings_selection_ + 1) % 7;
+            settings_selection_ = (settings_selection_ + 1) % 8;
         } else if (action == GameAction::Left) {
             if (settings_selection_ == 0) {
                 int temp = selected_general_theme_;
@@ -650,7 +655,10 @@ void GameEngine::handleInput(int key) {
                 } while (isColorLocked(temp));
                 selected_general_theme_ = temp;
                 saveHighScore();
-            } else if (settings_selection_ == 3) {
+            } else if (settings_selection_ == 1) {
+                I18n::cycleLanguage(-1);
+                saveHighScore();
+            } else if (settings_selection_ == 4) {
                 int temp = selected_pacman_color_;
                 do {
                     temp = (temp - 1 + Config::THEME_COUNT) % Config::THEME_COUNT;
@@ -666,7 +674,10 @@ void GameEngine::handleInput(int key) {
                 } while (isColorLocked(temp));
                 selected_general_theme_ = temp;
                 saveHighScore();
-            } else if (settings_selection_ == 3) {
+            } else if (settings_selection_ == 1) {
+                I18n::cycleLanguage(1);
+                saveHighScore();
+            } else if (settings_selection_ == 4) {
                 int temp = selected_pacman_color_;
                 do {
                     temp = (temp + 1) % Config::THEME_COUNT;
@@ -682,6 +693,7 @@ void GameEngine::handleInput(int key) {
     case GamePhase::Stats:
         if (key == 27 || key == '\n' || key == '\r' || key == ' ') {
             phase_ = GamePhase::MainMenu;
+            main_menu_message_ = "";
             fade_animation_.fadeIn({255, 255, 255}, 300);
         }
         break;
@@ -955,12 +967,15 @@ void GameEngine::handleInput(int key) {
                     startLevel(level_);
                 }
                 break;
-            case 1:
-                selected_pacman_color_ = (selected_pacman_color_ + dir + Config::THEME_COUNT) % Config::THEME_COUNT;
-                if (isColorLocked(selected_pacman_color_))
-                    selected_pacman_color_ = 0;
+            case 1: {
+                int temp = selected_pacman_color_;
+                do {
+                    temp = (temp + dir + Config::THEME_COUNT) % Config::THEME_COUNT;
+                } while (isColorLocked(temp));
+                selected_pacman_color_ = temp;
                 saveHighScore();
                 break;
+            }
             case 2: lives_ = std::clamp(lives_ + dir, 1, 66); break;
             case 3: score_ = std::max(0, score_ + dir * 1000); break;
             case 4: immortal_ = !immortal_; break;
@@ -1033,10 +1048,18 @@ void GameEngine::handleMouseClick() {
     case GamePhase::MainMenu: {
         bool big = render_width_ >= 66 && render_height_ >= 22;
 
-        std::string install_text = isInstalledLocally() ? "Uninstall pacterm" : "Install pacterm";
-        std::string user_text    = big ? ("Username:       " + username_) : ("User: " + username_);
+        std::string install_text = isInstalledLocally() ? std::string(I18n::t("main_menu.uninstall")) : std::string(I18n::t("main_menu.install"));
+        std::string user_text    = big ? (std::string(I18n::t("main_menu.username")) + ":       " + username_) : (std::string(I18n::t("main_menu.username")) + ": " + username_);
 
-        std::array<std::string, 7> opts = {"  Start Game", "  " + user_text, "  Stats", "  Redeem Code", "  " + install_text, "  Settings", "  Quit"};
+        std::array<std::string, 7> opts = {
+            "  " + std::string(I18n::t("main_menu.start")),
+            "  " + user_text,
+            "  " + std::string(I18n::t("main_menu.stats")),
+            "  " + std::string(I18n::t("main_menu.redeem")),
+            "  " + install_text,
+            "  " + std::string(I18n::t("main_menu.settings")),
+            "  " + std::string(I18n::t("main_menu.quit"))
+        };
 
         size_t max_w = 0;
         for (const auto& o : opts) {
@@ -1058,7 +1081,10 @@ void GameEngine::handleMouseClick() {
                     phase_          = GamePhase::UsernameInput;
                     input_username_ = username_;
                     break;
-                case 2: phase_ = GamePhase::Stats; break;
+                case 2:
+                    phase_ = GamePhase::Stats;
+                    fade_animation_.fadeIn({255, 255, 255}, 300);
+                    break;
                 case 3:
                     phase_         = GamePhase::RedeemInput;
                     redeem_input_  = "";
@@ -1082,6 +1108,7 @@ void GameEngine::handleMouseClick() {
                     phase_              = GamePhase::Settings;
                     settings_selection_ = 0;
                     main_menu_message_  = "";
+                    fade_animation_.fadeIn({255, 255, 255}, 300);
                     break;
                 case 6:
                     running_ = false;
@@ -1093,28 +1120,9 @@ void GameEngine::handleMouseClick() {
         break;
     }
     case GamePhase::Settings: {
-        bool big = render_width_ >= 66 && render_height_ >= 26;
-
-        std::string nf_text                                                  = "Nerd Fonts:     " + std::string(use_nerd_fonts_ ? "ON" : "OFF");
-        std::string sound_text                                               = "Sound:          " + std::string(muted_ ? "OFF" : "ON");
-        const std::array<std::string_view, Config::THEME_COUNT>& theme_names = kThemeNames;
-        std::string theme_text = big ? std::string("General Theme:  ") + std::string(theme_names[selected_general_theme_])
-                                     : std::string("Theme: ") + std::string(theme_names[selected_general_theme_]);
-        std::string pm_text    = std::string("Pac-Man Theme:  ") + std::string(theme_names[selected_pacman_color_]);
-
-        std::array<std::string, 7> opts = {"  " + theme_text,  "  " + nf_text, "  " + sound_text, "  " + pm_text,
-                                           "  Configure Keys", "  Reset",      "  Back to Menu"};
-
-        size_t max_w = 0;
-        for (const auto& o : opts) {
-            max_w = std::max(max_w, glyphCount(o));
-        }
-        int col_start = center_col - static_cast<int>(max_w / 2);
-        int row_base  = big ? (center_row - 3) : (center_row - 4);
-
-        for (int i = 0; i < 7; ++i) {
-            int row = row_base + i;
-            if (hitText(row, col_start, opts[i], my, mx)) {
+        for (int i = 0; i < 8; ++i) {
+            int row = center_row - 4 + i;
+            if (my == row && mx >= center_col - 22 && mx < center_col + 22) {
                 settings_selection_ = i;
                 activateSettingsSelection();
                 return;
@@ -1145,8 +1153,9 @@ void GameEngine::handleMouseClick() {
             }
         }
         int row_back          = center_row + 4;
-        std::string back_text = "  [ BACK TO MENU ]  ";
-        int back_col_start    = center_col - (int)back_text.length() / 2;
+        std::string back_base = "[ " + std::string(I18n::t("level_select.back")) + " ]";
+        std::string back_text = "  " + back_base + "  ";
+        int back_col_start    = center_col - static_cast<int>(glyphCount(back_text)) / 2;
         if (hitText(row_back, back_col_start, back_text, my, mx)) {
             phase_ = GamePhase::MainMenu;
             return;
@@ -1154,12 +1163,14 @@ void GameEngine::handleMouseClick() {
         break;
     }
     case GamePhase::Paused: {
-        std::array<std::string, 5> opts = {"  Resume Game", "  Theme Info & Guide", "  Restart Level", "  Return to Menu", "  Quit Game"};
-        size_t max_w                    = 0;
-        for (const auto& o : opts) {
-            max_w = std::max(max_w, glyphCount(o));
-        }
-        int col_start = center_col - static_cast<int>(max_w / 2);
+        std::array<std::string, 5> opts = {
+            "  " + std::string(I18n::t("pause.resume")),
+            "  " + std::string(I18n::t("pause.theme_info")),
+            "  " + std::string(I18n::t("pause.restart")),
+            "  " + std::string(I18n::t("pause.return_menu")),
+            "  " + std::string(I18n::t("pause.quit"))
+        };
+        int col_start = center_col - 12;
         for (int i = 0; i < 5; ++i) {
             int row = center_row - 2 + i;
             if (hitText(row, col_start, opts[i], my, mx)) {
@@ -1197,12 +1208,8 @@ void GameEngine::handleMouseClick() {
             break;
         std::array<std::string, 6> opts = {"  UP:    [ " + getKeyName(custom_key_up_) + " ]",    "  DOWN:  [ " + getKeyName(custom_key_down_) + " ]",
                                            "  LEFT:  [ " + getKeyName(custom_key_left_) + " ]",  "  RIGHT: [ " + getKeyName(custom_key_right_) + " ]",
-                                           "  PAUSE: [ " + getKeyName(custom_key_pause_) + " ]", "  Save & Back"};
-        size_t max_w                    = 0;
-        for (const auto& o : opts) {
-            max_w = std::max(max_w, glyphCount(o));
-        }
-        int col_start = center_col - static_cast<int>(max_w / 2);
+                                           "  PAUSE: [ " + getKeyName(custom_key_pause_) + " ]", "  " + std::string(I18n::t("key_config.save_back"))};
+        int col_start = center_col - 16;
         for (int i = 0; i < 6; ++i) {
             int row = center_row - 4 + i;
             if (hitText(row, col_start, opts[i], my, mx)) {
@@ -1478,35 +1485,24 @@ void GameEngine::update(int delta_ms) {
             }
         }
 
-        for (auto it = popups_.begin(); it != popups_.end();) {
-            it->lifetime_ms -= delta_ms;
-            if (it->lifetime_ms <= 0) {
-                it = popups_.erase(it);
-            } else {
-                ++it;
-            }
+        for (auto& popup : popups_) {
+            popup.lifetime_ms -= delta_ms;
         }
+        std::erase_if(popups_, [](const FloatingPopup& p) { return p.lifetime_ms <= 0; });
 
         double dt_sec = delta_ms / 1000.0;
-        for (auto it = particles_.begin(); it != particles_.end();) {
-            it->lifetime_ms -= delta_ms;
-            if (it->lifetime_ms <= 0) {
-                it = particles_.erase(it);
-            } else {
-                it->x += it->vx * dt_sec;
-                it->y += it->vy * dt_sec;
-                ++it;
-            }
+        for (auto& p : particles_) {
+            p.lifetime_ms -= delta_ms;
+            p.x += p.vx * dt_sec;
+            p.y += p.vy * dt_sec;
         }
+        std::erase_if(particles_, [](const Particle& p) { return p.lifetime_ms <= 0; });
 
-        for (auto it = acid_trails_.begin(); it != acid_trails_.end();) {
-            it->lifetime_ms -= delta_ms;
-            if (it->lifetime_ms <= 0) {
-                it = acid_trails_.erase(it);
-            } else {
-                ++it;
-            }
+        for (auto& trail : acid_trails_) {
+            trail.lifetime_ms -= delta_ms;
         }
+        std::erase_if(acid_trails_, [](const AcidTrail& t) { return t.lifetime_ms <= 0; });
+
         if (level_ >= 5 && level_ <= 8) {
             bool already_exists = false;
             for (const auto& trail : acid_trails_) {
@@ -1520,20 +1516,17 @@ void GameEngine::update(int delta_ms) {
             }
         }
 
-        for (auto it = lava_tiles_.begin(); it != lava_tiles_.end();) {
-            if (it->warning_ms > 0) {
-                it->warning_ms -= delta_ms;
-                ++it;
-            } else if (it->active_ms > 0) {
-                it->active_ms -= delta_ms;
-                if (pacman_.position == it->pos && !immortal_ && !(hasPowerup(PowerupKind::LavaResist) && lava_resist_active_)) {
+        for (auto& lava : lava_tiles_) {
+            if (lava.warning_ms > 0) {
+                lava.warning_ms -= delta_ms;
+            } else if (lava.active_ms > 0) {
+                lava.active_ms -= delta_ms;
+                if (pacman_.position == lava.pos && !immortal_ && !(hasPowerup(PowerupKind::LavaResist) && lava_resist_active_)) {
                     pacmanCaught();
                 }
-                ++it;
-            } else {
-                it = lava_tiles_.erase(it);
             }
         }
+        std::erase_if(lava_tiles_, [](const LavaTile& l) { return l.warning_ms <= 0 && l.active_ms <= 0; });
         if ((level_ >= 13 && level_ <= 16) || (level_ >= 27 && level_ <= 29)) {
             lava_spawn_timer_ms_ -= delta_ms;
             if (lava_spawn_timer_ms_ <= 0) {
@@ -1679,24 +1672,17 @@ void GameEngine::update(int delta_ms) {
     }
 
     case GamePhase::LevelClear:
-        for (auto it = popups_.begin(); it != popups_.end();) {
-            it->lifetime_ms -= delta_ms;
-            if (it->lifetime_ms <= 0) {
-                it = popups_.erase(it);
-            } else {
-                ++it;
-            }
+        for (auto& popup : popups_) {
+            popup.lifetime_ms -= delta_ms;
         }
-        for (auto it = particles_.begin(); it != particles_.end();) {
-            it->lifetime_ms -= delta_ms;
-            if (it->lifetime_ms <= 0) {
-                it = particles_.erase(it);
-            } else {
-                it->x += it->vx * (delta_ms / 1000.0);
-                it->y += it->vy * (delta_ms / 1000.0);
-                ++it;
-            }
+        std::erase_if(popups_, [](const FloatingPopup& p) { return p.lifetime_ms <= 0; });
+
+        for (auto& p : particles_) {
+            p.lifetime_ms -= delta_ms;
+            p.x += p.vx * (delta_ms / 1000.0);
+            p.y += p.vy * (delta_ms / 1000.0);
         }
+        std::erase_if(particles_, [](const Particle& p) { return p.lifetime_ms <= 0; });
         phase_timer_ms_ -= delta_ms;
         if (phase_timer_ms_ <= 0) {
             finishLevelClear();
@@ -2134,6 +2120,7 @@ void GameEngine::initRenderer() {
     render_height_ = term_size_.y;
     front_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
     back_buffer_.assign(render_height_, std::vector<Cell>(render_width_, Cell{}));
+    output_batch_.reserve(65536);
     (void)::write(STDOUT_FILENO, "\033[2J\033[H\033[?25l", 14);
 }
 
@@ -2196,6 +2183,30 @@ size_t GameEngine::displayWidth(std::string_view text) const noexcept {
         i += consumed;
     }
     return w;
+}
+
+std::string GameEngine::truncateText(std::string_view text, size_t max_width) const {
+    size_t total_w = displayWidth(text);
+    if (total_w <= max_width) {
+        return std::string(text);
+    }
+    if (max_width <= 3) {
+        return std::string(max_width, '.');
+    }
+    size_t target_w = max_width - 3;
+    size_t cur_w    = 0;
+    size_t byte_len = 0;
+    for (size_t i = 0; i < text.size();) {
+        size_t consumed = 0;
+        size_t w        = seqWidth(text, i, &consumed);
+        if (cur_w + w > target_w) {
+            break;
+        }
+        cur_w += w;
+        i += consumed;
+        byte_len = i;
+    }
+    return std::string(text.substr(0, byte_len)) + "...";
 }
 
 void GameEngine::drawString(int row, int col, std::string_view text, Color fg, Color bg, bool bold) {
@@ -2383,24 +2394,26 @@ void GameEngine::presentFrame() {
     for (int r = 0; r < render_height_; ++r) {
         for (int c = 0; c < render_width_; ++c) {
             const Cell& back = back_buffer_[r][c];
-            // Continuation cells of a two-column glyph (empty glyph) are fully
-            // covered by that glyph in the terminal; never write to them.
-            if (back.glyph.empty())
+            if (back.glyph.empty()) {
+                front_buffer_[r][c] = back;
                 continue;
+            }
             const Cell& front = front_buffer_[r][c];
 
-            if (fade_active || back != front) {
+            Color out_fg = back.fg;
+            Color out_bg = back.bg;
+            if (fade_active) {
+                out_fg = {static_cast<uint8_t>(back.fg.r * fade), static_cast<uint8_t>(back.fg.g * fade), static_cast<uint8_t>(back.fg.b * fade)};
+                out_bg = {static_cast<uint8_t>(back.bg.r * fade), static_cast<uint8_t>(back.bg.g * fade), static_cast<uint8_t>(back.bg.b * fade)};
+            }
+
+            Cell target_cell{back.glyph, out_fg, out_bg, back.bold, back.blink};
+
+            if (target_cell != front) {
                 if (cursor_r != r || cursor_c != c) {
                     appendPos(r + 1, c + 1);
                     cursor_r = r;
                     cursor_c = c;
-                }
-
-                Color out_fg = back.fg;
-                Color out_bg = back.bg;
-                if (fade_active) {
-                    out_fg = {static_cast<uint8_t>(back.fg.r * fade), static_cast<uint8_t>(back.fg.g * fade), static_cast<uint8_t>(back.fg.b * fade)};
-                    out_bg = {static_cast<uint8_t>(back.bg.r * fade), static_cast<uint8_t>(back.bg.g * fade), static_cast<uint8_t>(back.bg.b * fade)};
                 }
 
                 if (!style_initialized || out_fg != current_fg || out_bg != current_bg || back.bold != current_bold || back.blink != current_blink) {
@@ -2408,13 +2421,11 @@ void GameEngine::presentFrame() {
                 }
 
                 output_batch_ += back.glyph;
-
                 cursor_c += static_cast<int>(displayWidth(back.glyph));
+                front_buffer_[r][c] = target_cell;
             }
         }
     }
-
-    front_buffer_.swap(back_buffer_);
 
     if (!output_batch_.empty()) {
         ::write(STDOUT_FILENO, output_batch_.data(), output_batch_.size());
@@ -2516,9 +2527,15 @@ void GameEngine::render() {
             int center_col    = render_width_ / 2;
             apply_menu_theme_ = true;
 
-            drawTitleBorderBox(center_row - 4, center_col - 15, 31, 9, " GAME PAUSED ", {0, 255, 255}, {255, 255, 0}, {0, 0, 0});
+            drawTitleBorderBox(center_row - 4, center_col - 15, 31, 9, " " + std::string(I18n::t("pause.title")) + " ", {0, 255, 255}, {255, 255, 0}, {0, 0, 0});
 
-            std::array<std::string, 5> options = {"Resume Game", "Theme Info & Guide", "Restart Level", "Return to Menu", "Quit Game"};
+            std::array<std::string, 5> options = {
+                std::string(I18n::t("pause.resume")),
+                std::string(I18n::t("pause.theme_info")),
+                std::string(I18n::t("pause.restart")),
+                std::string(I18n::t("pause.return_menu")),
+                std::string(I18n::t("pause.quit"))
+            };
 
             int block_left = center_col - 12;
 
@@ -2984,11 +3001,12 @@ void GameEngine::renderEntities(const Viewport* vpp) {
 }
 
 void GameEngine::renderHUD() {
-    std::string score_str = " " + username_ + "'s SCORE: " + std::to_string(score_);
+    std::string score_str = username_.empty() ? I18n::format("hud.score_anon", score_)
+                                              : I18n::format("hud.score", username_, score_);
     if (muted_) {
-        score_str += " [MUTED]";
+        score_str += std::string(I18n::t("hud.muted"));
     }
-    std::string high_str = "HIGH: " + std::to_string(high_score_) + " ";
+    std::string high_str = I18n::format("hud.high", high_score_);
     int center_col       = render_width_ / 2;
 
     Color hud_fg = {255, 255, 255};
@@ -3002,42 +3020,42 @@ void GameEngine::renderHUD() {
     const int t = selected_general_theme_;
     fillRow(0, hud_fg, hud_bg);
     drawGradientString(0, 2, score_str, themePrimary(t, 0.0), themePrimary(t, 1.6), hud_bg);
-    drawGradientString(0, render_width_ - high_str.size() - 2, high_str, themeAccent(t, 0.0), themeAccent(t, 1.6), hud_bg);
+    drawGradientString(0, render_width_ - static_cast<int>(displayWidth(high_str)) - 2, high_str, themeAccent(t, 0.0), themeAccent(t, 1.6), hud_bg);
 
     std::string powerup_str = "";
     Color powerup_color     = {255, 255, 255};
     if (fever_active_ && fever_timer_ms_ > 0) {
         int sec       = (fever_timer_ms_ + 999) / 1000;
-        powerup_str   = (use_nerd_fonts_ ? "󰈸 FEVER x2: " : "FEVER x2: ") + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "󰈸 " : "") + I18n::format("hud.fever", sec);
         powerup_color = {255, 0, 255};
     } else if (letter_score_mult_timer_ms_ > 0) {
         int sec       = (letter_score_mult_timer_ms_ + 999) / 1000;
-        powerup_str   = (use_nerd_fonts_ ? "★ x2 SCORE: " : "* x2 SCORE: ") + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "★ " : "* ") + I18n::format("hud.x2_score", sec);
         powerup_color = {255, 215, 0};
     } else if (speed_boost_timer_ms_ > 0 || pac_speed_timer_ms_ > 0) {
         int sec       = (std::max(speed_boost_timer_ms_, pac_speed_timer_ms_) + 999) / 1000;
-        powerup_str   = (use_nerd_fonts_ ? "󱐋 SPEED: " : ">> SPEED: ") + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "󱐋 " : ">> ") + I18n::format("hud.speed", sec);
         powerup_color = {255, 215, 0};
     } else if (ice_freeze_timer_ms_ > 0 || ghost_freeze_timer_ms_ > 0) {
         int sec       = (std::max(ice_freeze_timer_ms_, ghost_freeze_timer_ms_) + 999) / 1000;
-        powerup_str   = (use_nerd_fonts_ ? "󰜗 FREEZE: " : "|| FREEZE: ") + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "󰜗 " : "|| ") + I18n::format("hud.freeze", sec);
         powerup_color = {100, 255, 255};
     } else if (fruit_magnet_timer_ms_ > 0) {
         int sec       = (fruit_magnet_timer_ms_ + 999) / 1000;
-        powerup_str   = (use_nerd_fonts_ ? "󰛡 MAGNET: " : "U MAGNET: ") + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "󰛡 " : "U ") + I18n::format("hud.magnet", sec);
         powerup_color = {255, 165, 0};
     } else if (fruit_shield_active_) {
-        powerup_str   = use_nerd_fonts_ ? "󰞍 SHIELD ACTIVE" : "[SHIELD ACTIVE]";
+        powerup_str   = (use_nerd_fonts_ ? "󰞍 " : "[") + std::string(I18n::t("hud.shield")) + (use_nerd_fonts_ ? "" : "]");
         powerup_color = {100, 255, 100};
     } else if (fruit_double_bounty_timer_ms_ > 0) {
         int sec       = (fruit_double_bounty_timer_ms_ + 999) / 1000;
-        powerup_str   = (use_nerd_fonts_ ? "󰄯 2x BOUNTY: " : "$ 2x BOUNTY: ") + std::to_string(sec) + "s";
+        powerup_str   = (use_nerd_fonts_ ? "󰄯 " : "$ ") + I18n::format("hud.bounty", sec);
         powerup_color = {150, 255, 150};
     }
     if (!powerup_str.empty()) {
         const int w       = static_cast<int>(displayWidth(powerup_str));
         int start_col     = center_col - w / 2;
-        const int max_col = render_width_ - static_cast<int>(high_str.size()) - 2 - w;
+        const int max_col = render_width_ - static_cast<int>(displayWidth(high_str)) - 2 - w;
         if (start_col > max_col)
             start_col = max_col;
         if (start_col < 0)
@@ -3045,15 +3063,15 @@ void GameEngine::renderHUD() {
         drawString(0, start_col, powerup_str, powerup_color, hud_bg);
     }
 
-    std::string lives_str = " LIVES: ";
+    std::string lives_str = std::string(I18n::t("hud.lives"));
     for (int i = 0; i < lives_; ++i) {
         lives_str += use_nerd_fonts_ ? "♥ " : "<3";
     }
-    std::string level_str = "LEVEL " + std::to_string(level_) + " ";
+    std::string level_str = I18n::format("hud.level", level_);
 
     fillRow(render_height_ - 1, hud_fg, hud_bg);
     drawGradientString(render_height_ - 1, 2, lives_str, themeAccent(t, 0.0), themeAccent(t, 1.4), hud_bg);
-    drawGradientString(render_height_ - 1, render_width_ - level_str.size() - 2, level_str, themePrimary(t, 0.0), themePrimary(t, 1.2), hud_bg);
+    drawGradientString(render_height_ - 1, render_width_ - static_cast<int>(displayWidth(level_str)) - 2, level_str, themePrimary(t, 0.0), themePrimary(t, 1.2), hud_bg);
 }
 
 void GameEngine::renderMainMenu() {
@@ -3082,12 +3100,12 @@ void GameEngine::renderMainMenu() {
             drawString(center_row - 6, center_col - 31, "  ██║     ██║  ██║╚██████╗   ██║   ███████╗██║  ██║██║ ╚═╝ ██║", getPrimaryGradient(4.0 * 0.3));
             drawString(center_row - 5, center_col - 31, "  ╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝", getPrimaryGradient(5.0 * 0.3));
         } else {
-            drawString(center_row - 10, center_col - 28, "  #####    ###    ###   #####  #####  ####   #   #   #  ", getPrimaryGradient(0.0 * 0.3));
-            drawString(center_row - 9, center_col - 28, "  #    #  #   #  #   #    #    #      #   #  ## ##   #  ", getPrimaryGradient(1.0 * 0.3));
-            drawString(center_row - 8, center_col - 28, "  #####   #####  #        #    ####   ####   # # #   #  ", getPrimaryGradient(2.0 * 0.3));
-            drawString(center_row - 7, center_col - 28, "  #       #   #  #   #    #    #      # #    #   #   #  ", getPrimaryGradient(3.0 * 0.3));
-            drawString(center_row - 6, center_col - 28, "  #       #   #   ###     #    #####  #  ##  #   #   #  ", getPrimaryGradient(4.0 * 0.3));
-            drawString(center_row - 5, center_col - 28, "                                                        ", getPrimaryGradient(5.0 * 0.3));
+            drawString(center_row - 10, center_col - 24, "#####    ###    ###   #####  #####  ####   #   #", getPrimaryGradient(0.0 * 0.3));
+            drawString(center_row - 9,  center_col - 24, "#    #  #   #  #   #    #    #      #   #  ## ##", getPrimaryGradient(1.0 * 0.3));
+            drawString(center_row - 8,  center_col - 24, "#####   #####  #        #    ####   ####   # # #", getPrimaryGradient(2.0 * 0.3));
+            drawString(center_row - 7,  center_col - 24, "#       #   #  #   #    #    #      # #    #   #", getPrimaryGradient(3.0 * 0.3));
+            drawString(center_row - 6,  center_col - 24, "#       #   #   ###     #    #####  #  ##  #   #", getPrimaryGradient(4.0 * 0.3));
+            drawString(center_row - 5,  center_col - 24, "                                                ", getPrimaryGradient(5.0 * 0.3));
         }
 
         menu_accent_           = true;
@@ -3134,10 +3152,18 @@ void GameEngine::renderMainMenu() {
         drawString(center_row + 9, center_col - 30, bl + mid_line + br, border_color_bottom);
         menu_accent_ = false;
 
-        std::string install_text = isInstalledLocally() ? "Uninstall pacterm" : "Install pacterm locally";
-        std::string user_text    = "Username:       " + username_;
+        std::string install_text = isInstalledLocally() ? std::string(I18n::t("main_menu.uninstall")) : std::string(I18n::t("main_menu.install"));
+        std::string user_text    = std::string(I18n::t("main_menu.username")) + ":       " + username_;
 
-        std::array<std::string, 7> main_options = {"Start Game", user_text, "Stats", "Redeem Code", install_text, "Settings", "Quit"};
+        std::array<std::string, 7> main_options = {
+            std::string(I18n::t("main_menu.start")),
+            user_text,
+            std::string(I18n::t("main_menu.stats")),
+            std::string(I18n::t("main_menu.redeem")),
+            install_text,
+            std::string(I18n::t("main_menu.settings")),
+            std::string(I18n::t("main_menu.quit"))
+        };
 
         size_t max_w = 0;
         for (const auto& o : main_options) {
@@ -3178,7 +3204,7 @@ void GameEngine::renderMainMenu() {
         }
 
         if (!main_menu_message_.empty()) {
-            drawString(center_row + 5, center_col - main_menu_message_.length() / 2, main_menu_message_, {0, 255, 0});
+            drawString(center_row + 5, center_col - static_cast<int>(main_menu_message_.length()) / 2, main_menu_message_, {0, 255, 0});
         }
 
         Color label_color = {0, 255, 255};
@@ -3197,10 +3223,18 @@ void GameEngine::renderMainMenu() {
         drawString(center_row - 4, center_col - 10, "  pacterm  ", title_color);
         drawString(center_row - 4, center_col + 6, "[v" + std::string(Config::PACTERM_VERSION) + "]", {100, 100, 100});
 
-        std::string install_text = isInstalledLocally() ? "Uninstall pacterm" : "Install pacterm";
-        std::string user_text    = "User: " + username_;
+        std::string install_text = isInstalledLocally() ? std::string(I18n::t("main_menu.uninstall")) : std::string(I18n::t("main_menu.install"));
+        std::string user_text    = std::string(I18n::t("main_menu.username")) + ": " + username_;
 
-        std::array<std::string, 7> main_options = {"Start Game", user_text, "Stats", "Redeem Code", install_text, "Settings", "Quit"};
+        std::array<std::string, 7> main_options = {
+            std::string(I18n::t("main_menu.start")),
+            user_text,
+            std::string(I18n::t("main_menu.stats")),
+            std::string(I18n::t("main_menu.redeem")),
+            install_text,
+            std::string(I18n::t("main_menu.settings")),
+            std::string(I18n::t("main_menu.quit"))
+        };
 
         size_t max_w = 0;
         for (const auto& o : main_options) {
@@ -3241,11 +3275,8 @@ void GameEngine::renderMainMenu() {
         }
 
         if (!main_menu_message_.empty()) {
-            drawString(center_row + 6, center_col - main_menu_message_.length() / 2, main_menu_message_, {0, 255, 0});
+            drawString(center_row + 6, center_col - static_cast<int>(main_menu_message_.length()) / 2, main_menu_message_, {0, 255, 0});
         }
-
-        drawString(center_row + 7, center_col - 15, "Website: wael.work.gd/pacterm", {200, 200, 200});
-        drawString(center_row + 8, center_col - 10, "License: GPL-3.0+", {200, 200, 200});
     }
 }
 
@@ -3255,74 +3286,49 @@ void GameEngine::renderSettings() {
 
     const std::array<std::string_view, Config::THEME_COUNT>& theme_names = kThemeNames;
 
+    struct SettingItem {
+        std::string label;
+        std::string value;
+        bool is_kv = true;
+    };
+
+    const std::array<SettingItem, 8> items = {{
+        {std::string(I18n::t("settings.general_theme")), std::string(theme_names[selected_general_theme_]), true},
+        {std::string(I18n::t("settings.language")), std::string(I18n::getCurrentLanguageName()), true},
+        {std::string(I18n::t("settings.nerd_fonts")), std::string(use_nerd_fonts_ ? I18n::t("settings.on") : I18n::t("settings.off")), true},
+        {std::string(I18n::t("settings.sound")), std::string(muted_ ? I18n::t("settings.off") : I18n::t("settings.on")), true},
+        {std::string(I18n::t("settings.pacman_theme")), std::string(theme_names[selected_pacman_color_]), true},
+        {std::string(I18n::t("settings.key_config")), "", false},
+        {std::string(I18n::t("settings.reset")), "", false},
+        {std::string(I18n::t("settings.back")), "", false}
+    }};
+
+    size_t max_label_w = 15;
+    for (size_t i = 0; i < 5; ++i) {
+        max_label_w = std::max(max_label_w, displayWidth(items[i].label));
+    }
+
+    std::array<std::string, 8> options;
+    for (size_t i = 0; i < 8; ++i) {
+        if (items[i].is_kv) {
+            size_t lw = displayWidth(items[i].label);
+            size_t pad = (max_label_w > lw) ? (max_label_w - lw) : 0;
+            options[i] = items[i].label + ":" + std::string(pad + 2, ' ') + items[i].value;
+        } else {
+            options[i] = items[i].label;
+        }
+    }
+
+    std::string title_str = " " + std::string(I18n::t("settings.title")) + " ";
+    int title_x = center_col - static_cast<int>(displayWidth(title_str)) / 2;
+
     if (render_width_ >= 66 && render_height_ >= 26) {
-        drawDoubleBorderBox(center_row - 5, center_col - 22, 44, 11, {0, 255, 255}, {0, 0, 0});
-        drawString(center_row - 5, center_col - 5, " SETTINGS ", {255, 255, 0});
+        drawDoubleBorderBox(center_row - 6, center_col - 22, 44, 12, {0, 255, 255}, {0, 0, 0});
+        drawString(center_row - 6, title_x, title_str, {255, 255, 0});
 
-        std::string nf_text    = "Nerd Fonts:     " + std::string(use_nerd_fonts_ ? "ON" : "OFF");
-        std::string sound_text = "Sound:          " + std::string(muted_ ? "OFF" : "ON");
-        std::string theme_text = std::string("General Theme:  ") + std::string(theme_names[selected_general_theme_]);
-        std::string pm_text    = std::string("Pac-Man Theme:  ") + std::string(theme_names[selected_pacman_color_]);
+        int block_left = center_col - 19;
 
-        const std::array<std::string, 7> options = {theme_text, nf_text, sound_text, pm_text, "Configure Keys", "Reset", "Back to Menu"};
-
-        size_t max_w = 0;
-        for (const auto& o : options) {
-            max_w = std::max(max_w, glyphCount(o));
-        }
-        max_w += 2;
-        int block_left = center_col - static_cast<int>(max_w / 2);
-
-        for (int i = 0; i < 7; ++i) {
-            Color fg           = {220, 220, 220};
-            std::string prefix = "  ";
-            bool bold          = false;
-            bool is_selected   = (i == settings_selection_);
-            bool is_hovered    = isMouseHovering(center_row - 3 + i, block_left, "  " + options[i]);
-
-            if (is_selected) {
-                fg     = {255, 200, 0};
-                prefix = "> ";
-            } else if (is_hovered) {
-                fg     = {0, 255, 255};
-                prefix = "> ";
-                bold   = true;
-            }
-
-            if (is_selected && is_hovered) {
-                fg   = {255, 255, 120};
-                bold = true;
-            }
-
-            std::string draw_text = prefix + options[i];
-            if ((i == 0 && settings_selection_ == 0) || (i == 3 && settings_selection_ == 3)) {
-                draw_text = "> " + (i == 0 ? theme_text : pm_text) + " <";
-            }
-            drawString(center_row - 3 + i, block_left, draw_text, fg, {0, 0, 0}, bold);
-        }
-
-        if (!main_menu_message_.empty()) {
-            drawString(center_row + 6, center_col - static_cast<int>(main_menu_message_.length()) / 2, main_menu_message_, {0, 255, 0});
-        }
-    } else {
-        drawString(center_row - 7, center_col - 4, " SETTINGS ", {255, 255, 0});
-
-        const std::array<std::string, 7> options = {std::string("Theme: ") + std::string(theme_names[selected_general_theme_]),
-                                                    "Nerd Fonts: " + std::string(use_nerd_fonts_ ? "ON" : "OFF"),
-                                                    "Sound: " + std::string(muted_ ? "OFF" : "ON"),
-                                                    std::string("Pac-Man Theme: ") + std::string(theme_names[selected_pacman_color_]),
-                                                    "Configure Keys",
-                                                    "Reset",
-                                                    "Back to Menu"};
-
-        size_t max_w = 0;
-        for (const auto& o : options) {
-            max_w = std::max(max_w, glyphCount(o));
-        }
-        max_w += 2;
-        int block_left = center_col - static_cast<int>(max_w / 2);
-
-        for (int i = 0; i < 7; ++i) {
+        for (int i = 0; i < 8; ++i) {
             Color fg           = {220, 220, 220};
             std::string prefix = "  ";
             bool bold          = false;
@@ -3342,11 +3348,44 @@ void GameEngine::renderSettings() {
                 fg   = {255, 255, 120};
                 bold = true;
             }
-            drawString(center_row - 4 + i, block_left, prefix + options[i], fg, {0, 0, 0}, bold);
+
+            std::string draw_text = prefix + options[i];
+            drawString(center_row - 4 + i, block_left, truncateText(draw_text, 38), fg, {0, 0, 0}, bold);
         }
 
         if (!main_menu_message_.empty()) {
-            drawString(center_row + 5, center_col - static_cast<int>(main_menu_message_.length()) / 2, main_menu_message_, {0, 255, 0});
+            drawString(center_row + 4, center_col - static_cast<int>(main_menu_message_.length()) / 2, main_menu_message_, {0, 255, 0});
+        }
+    } else {
+        drawString(center_row - 7, title_x, title_str, {255, 255, 0});
+
+        int block_left = std::max(2, center_col - 19);
+
+        for (int i = 0; i < 8; ++i) {
+            Color fg           = {220, 220, 220};
+            std::string prefix = "  ";
+            bool bold          = false;
+            bool is_selected   = (i == settings_selection_);
+            bool is_hovered    = isMouseHovering(center_row - 4 + i, block_left, "  " + options[i]);
+
+            if (is_selected) {
+                fg     = {255, 200, 0};
+                prefix = "> ";
+            } else if (is_hovered) {
+                fg     = {0, 255, 255};
+                prefix = "> ";
+                bold   = true;
+            }
+
+            if (is_selected && is_hovered) {
+                fg   = {255, 255, 120};
+                bold = true;
+            }
+            drawString(center_row - 4 + i, block_left, truncateText(prefix + options[i], render_width_ - 4), fg, {0, 0, 0}, bold);
+        }
+
+        if (!main_menu_message_.empty()) {
+            drawString(center_row + 4, center_col - static_cast<int>(main_menu_message_.length()) / 2, main_menu_message_, {0, 255, 0});
         }
     }
 }
@@ -3363,14 +3402,18 @@ void GameEngine::activateSettingsSelection() {
         break;
     }
     case 1:
-        use_nerd_fonts_ = !use_nerd_fonts_;
+        I18n::cycleLanguage(1);
         saveHighScore();
         break;
     case 2:
+        use_nerd_fonts_ = !use_nerd_fonts_;
+        saveHighScore();
+        break;
+    case 3:
         muted_ = !muted_;
         saveHighScore();
         break;
-    case 3: {
+    case 4: {
         int temp = selected_pacman_color_;
         do {
             temp = (temp + 1) % Config::THEME_COUNT;
@@ -3379,12 +3422,12 @@ void GameEngine::activateSettingsSelection() {
         saveHighScore();
         break;
     }
-    case 4:
+    case 5:
         phase_                = GamePhase::KeyConfig;
         key_config_selection_ = 0;
         is_binding_           = false;
         break;
-    case 5: {
+    case 6: {
         const char* home_env = std::getenv("HOME");
         if (home_env) {
             try {
@@ -3425,12 +3468,13 @@ void GameEngine::activateSettingsSelection() {
         if (env_nf && std::string(env_nf) == "0") {
             use_nerd_fonts_ = false;
         }
+        I18n::initFromLocale();
         rebuildKeybindings();
-        main_menu_message_      = "Everything reset successfully!";
+        main_menu_message_      = std::string(I18n::t("settings.reset_success"));
         main_menu_msg_timer_ms_ = 3000;
         break;
     }
-    case 6:
+    case 7:
         phase_             = GamePhase::MainMenu;
         main_menu_message_ = "";
         fade_animation_.fadeIn({255, 255, 255}, 300);
@@ -3443,13 +3487,15 @@ void GameEngine::renderRedeem() {
     int center_col = render_width_ / 2;
 
     drawDoubleBorderBox(center_row - 3, center_col - 18, 36, 6, {255, 215, 0}, {0, 0, 0});
-    drawString(center_row - 3, center_col - 6, " REDEEM CODE ", {255, 215, 0});
+    std::string redeem_title = " " + std::string(I18n::t("redeem.title")) + " ";
+    drawString(center_row - 3, center_col - static_cast<int>(displayWidth(redeem_title)) / 2, redeem_title, {255, 215, 0});
     drawString(center_row - 1, center_col - 16, "> " + redeem_input_ + "_", {255, 255, 255});
     if (!redeem_result_.empty()) {
         Color result_c = redeem_result_valid_ ? Color{0, 255, 0} : Color{255, 50, 50};
-        drawString(center_row, center_col - static_cast<int>(redeem_result_.length()) / 2, redeem_result_, result_c);
+        drawString(center_row, center_col - static_cast<int>(displayWidth(redeem_result_)) / 2, redeem_result_, result_c);
     }
-    drawString(center_row + 1, center_col - 17, "    ESC: Cancel  ENTER: Redeem    ", {150, 150, 150});
+    std::string redeem_hint = std::string(I18n::t("redeem.hint"));
+    drawString(center_row + 1, center_col - static_cast<int>(displayWidth(redeem_hint)) / 2, redeem_hint, {150, 150, 150});
 }
 
 void GameEngine::renderStats() {
@@ -3464,12 +3510,30 @@ void GameEngine::renderStats() {
     std::snprintf(time_buf, sizeof(time_buf), "%d:%02d:%02d", hours, minutes, seconds);
 
     if (render_width_ >= 66 && render_height_ >= 22) {
-        drawDoubleBorderBox(center_row - 7, center_col - 26, 53, 17, {0, 200, 255}, {0, 0, 0});
-        drawString(center_row - 7, center_col - 3, " STATS ", {255, 255, 0});
+        drawDoubleBorderBox(center_row - 7, center_col - 26, 53, 17, {0, 255, 255}, {0, 0, 0});
+        std::string title_str = " " + std::string(I18n::t("stats.title")) + " ";
+        drawString(center_row - 7, center_col - static_cast<int>(displayWidth(title_str)) / 2, title_str, {255, 255, 0});
 
-        std::string labels[8] = {"High Score", "Games Played", "Ghosts Eaten", "Deaths", "Best Level", "Dots Eaten", "Power Pellets", "Time Played"};
-        std::string values[8] = {std::to_string(high_score_),         std::to_string(games_played_), std::to_string(ghosts_eaten_),  std::to_string(deaths_),
-                                 std::to_string(max_unlocked_level_), std::to_string(dots_eaten_),   std::to_string(power_pellets_), time_buf};
+        std::string labels[8] = {
+            std::string(I18n::t("stats.high_score")),
+            std::string(I18n::t("stats.games_played")),
+            std::string(I18n::t("stats.ghosts_eaten")),
+            std::string(I18n::t("stats.deaths")),
+            std::string(I18n::t("stats.best_level")),
+            std::string(I18n::t("stats.dots_eaten")),
+            std::string(I18n::t("stats.power_pellets")),
+            std::string(I18n::t("stats.time_played"))
+        };
+        std::string values[8] = {
+            std::to_string(high_score_),
+            std::to_string(games_played_),
+            std::to_string(ghosts_eaten_),
+            std::to_string(deaths_),
+            std::to_string(max_unlocked_level_),
+            std::to_string(dots_eaten_),
+            std::to_string(power_pellets_),
+            time_buf
+        };
 
         int label_rows[4] = {center_row - 5, center_row - 2, center_row + 1, center_row + 4};
         int col_left      = center_col - 22;
@@ -3486,27 +3550,33 @@ void GameEngine::renderStats() {
             drawString(label_rows[i] + 1, col_right, values[ri], val_c, {0, 0, 0}, true);
         }
 
-        drawString(center_row + 7, center_col - 22, "Letters: ", {180, 180, 200}, {0, 0, 0}, false);
+        std::string letters_lbl = std::string(I18n::t("stats.letters")) + ": ";
+        drawString(center_row + 7, center_col - 22, letters_lbl, {180, 180, 200}, {0, 0, 0}, false);
+        int letters_col = center_col - 22 + static_cast<int>(glyphCount(letters_lbl));
         for (int i = 0; i < LetterHuntState::LETTER_COUNT; ++i) {
             Color lc = letter_hunt_.isCollected(i) ? Color{255, 215, 0} : Color{70, 70, 75};
-            drawString(center_row + 7, center_col - 13 + i, std::string(1, "PACTERM"[i]), lc, {0, 0, 0}, false);
+            drawString(center_row + 7, letters_col + i, std::string(1, "PACTERM"[i]), lc, {0, 0, 0}, false);
         }
     } else {
         std::string list[6] = {
-            "High Score:     " + std::to_string(high_score_),   "Best Level:     " + std::to_string(max_unlocked_level_),
-            "Games Played:   " + std::to_string(games_played_), "Dots Eaten:     " + std::to_string(dots_eaten_),
-            "Ghosts Eaten:   " + std::to_string(ghosts_eaten_), "Power Pellets:  " + std::to_string(power_pellets_),
+            std::string(I18n::t("stats.high_score")) + ": " + std::to_string(high_score_),
+            std::string(I18n::t("stats.best_level")) + ": " + std::to_string(max_unlocked_level_),
+            std::string(I18n::t("stats.games_played")) + ": " + std::to_string(games_played_),
+            std::string(I18n::t("stats.dots_eaten")) + ": " + std::to_string(dots_eaten_),
+            std::string(I18n::t("stats.ghosts_eaten")) + ": " + std::to_string(ghosts_eaten_),
+            std::string(I18n::t("stats.power_pellets")) + ": " + std::to_string(power_pellets_),
         };
         for (int i = 0; i < 6; ++i) {
-            Color fg = {255, 255, 255};
-            drawString(center_row - 3 + i, center_col - 18, list[i], fg, {0, 0, 0}, false);
+            drawString(center_row - 3 + i, center_col - 12, list[i], {180, 180, 200});
         }
-        drawString(center_row + 3, center_col - 18, "Letters: ", {255, 255, 255}, {0, 0, 0}, false);
+        std::string letters_lbl = std::string(I18n::t("stats.letters")) + ": ";
+        drawString(center_row + 3, center_col - 12, letters_lbl, {180, 180, 200}, {0, 0, 0}, false);
+        int letters_col = center_col - 12 + static_cast<int>(glyphCount(letters_lbl));
         for (int i = 0; i < LetterHuntState::LETTER_COUNT; ++i) {
             Color lc = letter_hunt_.isCollected(i) ? Color{255, 215, 0} : Color{70, 70, 75};
-            drawString(center_row + 3, center_col - 9 + i, std::string(1, "PACTERM"[i]), lc, {0, 0, 0}, false);
+            drawString(center_row + 3, letters_col + i, std::string(1, "PACTERM"[i]), lc, {0, 0, 0}, false);
         }
-        drawString(center_row + 4, center_col - 14, "Deaths: " + std::to_string(deaths_) + "   Time: " + std::to_string(total_sec) + "s", {255, 255, 255});
+        drawString(center_row + 4, center_col - 12, std::string(I18n::t("stats.deaths")) + ": " + std::to_string(deaths_) + "   " + std::string(I18n::t("stats.time_played")) + ": " + std::to_string(total_sec) + "s", {180, 180, 200});
     }
 }
 
@@ -3514,17 +3584,25 @@ void GameEngine::renderGameOver() {
     int center_row = render_height_ / 2;
     int center_col = render_width_ / 2;
 
-    drawDoubleBorderBox(center_row - 3, center_col - 17, 33, 7, {255, 0, 0}, {0, 0, 0});
-    drawString(center_row - 1, center_col - 5, "GAME OVER", {255, 0, 0});
-    drawString(center_row + 1, center_col - 15, "Press ENTER to return to Menu", {255, 255, 255});
+    std::string go_text = std::string(I18n::t("game.game_over"));
+    std::string retry_text = std::string(I18n::t("game.press_continue"));
+    int box_w = std::max(static_cast<int>(displayWidth(retry_text)) + 4, 33);
+    int box_h = 7;
+
+    drawDoubleBorderBox(center_row - 3, center_col - box_w / 2, box_w, box_h, {255, 0, 0}, {0, 0, 0});
+    drawString(center_row - 1, center_col - static_cast<int>(displayWidth(go_text)) / 2, go_text, {255, 0, 0});
+    drawString(center_row + 1, center_col - static_cast<int>(displayWidth(retry_text)) / 2, retry_text, {255, 255, 255});
 }
 
 void GameEngine::renderGetReady() {
     int center_row = render_height_ / 2;
     int center_col = render_width_ / 2;
 
-    drawDoubleBorderBox(center_row - 2, center_col - 8, 16, 5, {255, 255, 0}, {0, 0, 0});
-    drawString(center_row, center_col - 3, "READY!", {255, 255, 0});
+    std::string ready_text = std::string(I18n::t("game.ready"));
+    int box_w = std::max(static_cast<int>(displayWidth(ready_text)) + 6, 16);
+
+    drawDoubleBorderBox(center_row - 2, center_col - box_w / 2, box_w, 5, {255, 255, 0}, {0, 0, 0});
+    drawString(center_row, center_col - static_cast<int>(displayWidth(ready_text)) / 2, ready_text, {255, 255, 0});
 }
 
 void GameEngine::addScore(int points) {
@@ -3547,6 +3625,7 @@ void GameEngine::saveHighScore() {
         return;
 
     std::string key       = "PacTermWaelSecure2026";
+    std::string lang_code = std::string(I18n::getCurrentLanguageCode());
     std::string plaintext = std::to_string(score_ > high_score_ ? score_ : high_score_) + " " + (muted_ ? "1" : "0") + " " + (use_nerd_fonts_ ? "1" : "0") +
                             " " + std::to_string(custom_key_up_) + " " + std::to_string(custom_key_down_) + " " + std::to_string(custom_key_left_) + " " +
                             std::to_string(custom_key_right_) + " " + std::to_string(custom_key_pause_) + " " + std::to_string(unlocked_rainbow_ ? 1 : 0) +
@@ -3554,7 +3633,7 @@ void GameEngine::saveHighScore() {
                             std::to_string(selected_general_theme_) + " " + std::to_string(games_played_) + " " + std::to_string(dots_eaten_) + " " +
                             std::to_string(ghosts_eaten_) + " " + std::to_string(deaths_) + " " + std::to_string(power_pellets_) + " " +
                             std::to_string(time_played_ms_) + " " + std::to_string(static_cast<int>(letter_hunt_.letter_mask)) + " " +
-                            std::to_string(pacterm_plus_unlocked_ ? 1 : 0) + " " + username_;
+                            std::to_string(pacterm_plus_unlocked_ ? 1 : 0) + " " + lang_code + " " + username_;
     for (size_t i = 0; i < plaintext.size(); ++i) {
         plaintext[i] ^= key[i % key.size()];
     }
@@ -3614,19 +3693,27 @@ void GameEngine::loadHighScore() {
     int temp_time             = 0;
     int temp_letter_mask      = 0;
     int temp_pacterm_unlocked = 0;
+    char lang_buf[32]         = "";
     char username_buf[128]    = "";
 
     int read_count =
-        std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf, &k_up,
+        std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %31s %127[^\r\n]", &high_score_, &temp_muted, &temp_nf, &k_up,
                     &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games, &temp_dots,
-                    &temp_ghosts, &temp_deaths, &temp_power, &temp_time, &temp_letter_mask, &temp_pacterm_unlocked, username_buf);
+                    &temp_ghosts, &temp_deaths, &temp_power, &temp_time, &temp_letter_mask, &temp_pacterm_unlocked, lang_buf, username_buf);
 
-    if (read_count < 21) {
+    if (read_count >= 22) {
+        I18n::setLanguageByCode(lang_buf);
+    } else {
         temp_letter_mask      = 0;
         temp_pacterm_unlocked = 0;
-        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf,
+        read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf,
                                  &k_up, &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games,
-                                 &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, username_buf);
+                                 &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, &temp_letter_mask, &temp_pacterm_unlocked, username_buf);
+        if (read_count < 21) {
+            read_count = std::sscanf(ciphertext.c_str(), "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %127[^\r\n]", &high_score_, &temp_muted, &temp_nf,
+                                     &k_up, &k_down, &k_left, &k_right, &k_pause, &temp_unlocked, &temp_max_level, &temp_color, &temp_general_theme, &temp_games,
+                                     &temp_dots, &temp_ghosts, &temp_deaths, &temp_power, &temp_time, username_buf);
+        }
     }
 
     if (read_count < 19) {
@@ -3891,9 +3978,6 @@ Color GameEngine::themeAccent(int theme, double offset) const {
 }
 
 Color GameEngine::pacManColor(double offset) const {
-    if (selected_general_theme_ == Config::PACTERM_PLUS_THEME) {
-        return themePrimary(Config::PACTERM_PLUS_THEME, offset);
-    }
     switch (selected_pacman_color_) {
     case 0: return {255, 255, 0};
     case 1: return {0, 255, 255};
@@ -3905,6 +3989,7 @@ Color GameEngine::pacManColor(double offset) const {
     case 7: return {255, 190, 70};
     case 8: return getRainbowColor(offset);
     case 9: return glitchRGB(current_time_ms_);
+    case 10: return themePrimary(Config::PACTERM_PLUS_THEME, offset);
     default: return themePrimary(Config::PACTERM_PLUS_THEME, offset);
     }
 }
@@ -3914,8 +3999,6 @@ Color GameEngine::tileAccentColor(int x, int y) const {
         const Color g = glitchRGB(current_time_ms_);
         return {g.b, g.r, g.g};
     }
-    // The PacTerm+ general theme only styles the menus and HUD; dots and power
-    // pellets keep their per-level palette so gameplay stays readable and fair.
     if (level_ >= 1 && level_ <= 4)
         return {255, 183, 174};
     if (level_ >= 5 && level_ <= 8)
@@ -3955,12 +4038,14 @@ Color GameEngine::applyGeneralThemeImpl(Color fg, double offset) const {
     if (mx <= 30)
         return fg;
 
+    // In PacTerm+ theming, if a text is white or grey in Classic, it should be in PacTerm+ too.
     if (selected_general_theme_ == Config::PACTERM_PLUS_THEME) {
-        // Keep achromatic content neutral: white stays white, gray stays gray.
-        // Only already-chromatic pixels get the animated Classic hue.
-        const uint8_t mn = fg.r < fg.g ? (fg.r < fg.b ? fg.r : fg.b) : (fg.g < fg.b ? fg.g : fg.b);
-        if (static_cast<int>(mx) - static_cast<int>(mn) <= 30)
+        int r = static_cast<int>(fg.r);
+        int g = static_cast<int>(fg.g);
+        int b = static_cast<int>(fg.b);
+        if (std::abs(r - g) <= 25 && std::abs(g - b) <= 25 && std::abs(r - b) <= 25) {
             return fg;
+        }
     }
 
     const BrightnessTier tier = getBrightnessTier(fg);
@@ -4536,11 +4621,11 @@ void GameEngine::renderScreensaver() {
         }
     }
 
-    std::string prompt       = "Press any key to return to the game";
+    std::string prompt       = std::string(I18n::t("game.press_any_key"));
     static int blink_counter = 0;
     blink_counter++;
     Color prompt_color = (blink_counter % 20 < 10) ? Color{150, 150, 150} : Color{80, 80, 80};
-    drawString(center_row + 5, center_col - prompt.length() / 2, prompt, prompt_color);
+    drawString(center_row + 5, center_col - static_cast<int>(displayWidth(prompt)) / 2, prompt, prompt_color);
 }
 
 void GameEngine::renderEffects(const Viewport* vpp) {
@@ -4628,7 +4713,8 @@ void GameEngine::renderLevelSelector() {
     // Apply theme to border and title
     apply_menu_theme_ = true;
     drawDoubleBorderBox(center_row - 10, center_col - 30, 60, 17, {0, 255, 255}, {0, 0, 0});
-    drawString(center_row - 10, center_col - 7, " SELECT LEVEL ", {255, 255, 0});
+    std::string ls_title = " " + std::string(I18n::t("level_select.title")) + " ";
+    drawString(center_row - 10, center_col - static_cast<int>(displayWidth(ls_title)) / 2, ls_title, {255, 255, 0});
     apply_menu_theme_ = false;
 
     // Level numbers use fixed per-level colors (no theme override)
@@ -4723,11 +4809,12 @@ void GameEngine::renderLevelSelector() {
     }
 
     int row_back = center_row + 4;
+    std::string back_base = "[ " + std::string(I18n::t("level_select.back")) + " ]";
     std::string back_text;
     Color back_color = {150, 150, 150};
     bool back_bold   = false;
     if (level_select_cursor_ == 30) {
-        back_text = "> [ BACK TO MENU ] <";
+        back_text = "> " + back_base + " <";
         if (click_feedback_timer_ms_ > 0) {
             back_color = {255, 255, 255};
             back_bold  = true;
@@ -4735,15 +4822,15 @@ void GameEngine::renderLevelSelector() {
             back_color = {255, 255, 0};
         }
     } else {
-        back_text  = "  [ BACK TO MENU ]  ";
+        back_text  = "  " + back_base + "  ";
         back_color = {150, 150, 150};
     }
-    if (isMouseHovering(row_back, center_col - static_cast<int>(back_text.length()) / 2, "  [ BACK TO MENU ]  ")) {
+    if (isMouseHovering(row_back, center_col - static_cast<int>(glyphCount(back_text)) / 2, "  " + back_base + "  ")) {
         back_color = {0, 255, 255};
         back_bold  = true;
-        back_text  = "> [ BACK TO MENU ] <";
+        back_text  = "> " + back_base + " <";
     }
-    drawString(row_back, center_col - static_cast<int>(back_text.length()) / 2, back_text, back_color, {0, 0, 0}, back_bold);
+    drawString(row_back, center_col - static_cast<int>(glyphCount(back_text)) / 2, back_text, back_color, {0, 0, 0}, back_bold);
 }
 
 void GameEngine::renderKeyConfig() {
@@ -4752,25 +4839,27 @@ void GameEngine::renderKeyConfig() {
 
     clearBuffer({0, 0, 0});
 
-    drawTitleBorderBox(center_row - 6, center_col - 20, 40, 11, " KEY CONFIGURATION ", {0, 255, 255}, {255, 255, 0}, {0, 0, 0});
-
-    std::string up_name   = is_binding_ ? (binding_action_ == GameAction::Up ? "PRESS KEY..." : getKeyName(custom_key_up_)) : getKeyName(custom_key_up_);
-    std::string down_name = is_binding_ ? (binding_action_ == GameAction::Down ? "PRESS KEY..." : getKeyName(custom_key_down_)) : getKeyName(custom_key_down_);
-    std::string left_name = is_binding_ ? (binding_action_ == GameAction::Left ? "PRESS KEY..." : getKeyName(custom_key_left_)) : getKeyName(custom_key_left_);
+    std::string press_key_text = std::string(I18n::t("key_config.press_key"));
+    std::string up_name   = is_binding_ ? (binding_action_ == GameAction::Up ? press_key_text : getKeyName(custom_key_up_)) : getKeyName(custom_key_up_);
+    std::string down_name = is_binding_ ? (binding_action_ == GameAction::Down ? press_key_text : getKeyName(custom_key_down_)) : getKeyName(custom_key_down_);
+    std::string left_name = is_binding_ ? (binding_action_ == GameAction::Left ? press_key_text : getKeyName(custom_key_left_)) : getKeyName(custom_key_left_);
     std::string right_name =
-        is_binding_ ? (binding_action_ == GameAction::Right ? "PRESS KEY..." : getKeyName(custom_key_right_)) : getKeyName(custom_key_right_);
+        is_binding_ ? (binding_action_ == GameAction::Right ? press_key_text : getKeyName(custom_key_right_)) : getKeyName(custom_key_right_);
     std::string pause_name =
-        is_binding_ ? (binding_action_ == GameAction::Pause ? "PRESS KEY..." : getKeyName(custom_key_pause_)) : getKeyName(custom_key_pause_);
+        is_binding_ ? (binding_action_ == GameAction::Pause ? press_key_text : getKeyName(custom_key_pause_)) : getKeyName(custom_key_pause_);
 
-    std::array<std::string, 6> options = {"UP:    [ " + up_name + " ]",    "DOWN:  [ " + down_name + " ]",  "LEFT:  [ " + left_name + " ]",
-                                          "RIGHT: [ " + right_name + " ]", "PAUSE: [ " + pause_name + " ]", "Save & Back"};
+    std::array<std::string, 6> options = {
+        "UP:    [ " + up_name + " ]",
+        "DOWN:  [ " + down_name + " ]",
+        "LEFT:  [ " + left_name + " ]",
+        "RIGHT: [ " + right_name + " ]",
+        "PAUSE: [ " + pause_name + " ]",
+        std::string(I18n::t("key_config.save_back"))
+    };
 
-    size_t max_w = 0;
-    for (const auto& o : options) {
-        max_w = std::max(max_w, glyphCount(o));
-    }
-    max_w += 2;
-    int block_left = center_col - static_cast<int>(max_w / 2);
+    drawTitleBorderBox(center_row - 6, center_col - 20, 40, 11, " " + std::string(I18n::t("key_config.title")) + " ", {0, 255, 255}, {255, 255, 0}, {0, 0, 0});
+
+    int block_left = center_col - 16;
 
     for (int i = 0; i < 6; ++i) {
         Color fg           = {220, 220, 220};
@@ -4801,9 +4890,11 @@ void GameEngine::renderKeyConfig() {
     }
 
     if (is_binding_) {
-        drawString(center_row + 3, center_col - 17, "PRESS ANY KEY NOW (ESC TO CANCEL)", {255, 100, 100});
+        std::string binding_p = std::string(I18n::t("key_config.binding_prompt"));
+        drawString(center_row + 3, center_col - static_cast<int>(glyphCount(binding_p)) / 2, binding_p, {255, 100, 100});
     } else {
-        drawString(center_row + 3, center_col - 18, "Press ENTER to edit", {180, 180, 180});
+        std::string enter_p = std::string(I18n::t("key_config.enter_prompt"));
+        drawString(center_row + 3, center_col - static_cast<int>(glyphCount(enter_p)) / 2, enter_p, {180, 180, 180});
     }
 }
 
@@ -4852,18 +4943,16 @@ void GameEngine::drawTitleBorderBox(int row, int col, int w, int h, std::string_
     int side      = (w - 2 - title_len) / 2;
 
     setCell(row, col, Cell{.glyph = tl, .fg = border_fg, .bg = bg});
-    int c = col + 1;
-    for (int i = 0; i < side; ++i, ++c) {
-        setCell(row, c, Cell{.glyph = hz, .fg = border_fg, .bg = bg});
+    for (int i = 0; i < side; ++i) {
+        setCell(row, col + 1 + i, Cell{.glyph = hz, .fg = border_fg, .bg = bg});
     }
 
     menu_accent_ = false;
-    drawString(row, c, title, title_fg, bg, false);
+    drawString(row, col + 1 + side, title, title_fg, bg, false);
     menu_accent_ = true;
 
-    c += title_len;
-    for (int i = 0; i < w - 2 - side - title_len; ++i, ++c) {
-        setCell(row, c, Cell{.glyph = hz, .fg = border_fg, .bg = bg});
+    for (int i = col + 1 + side + title_len; i < col + w - 1; ++i) {
+        setCell(row, i, Cell{.glyph = hz, .fg = border_fg, .bg = bg});
     }
     setCell(row, col + w - 1, Cell{.glyph = tr, .fg = border_fg, .bg = bg});
 
@@ -5357,8 +5446,8 @@ void GameEngine::renderThemeInfo() {
     int center_row    = render_height_ / 2;
     int center_col    = render_width_ / 2;
 
-    int box_w    = std::min(render_width_ - 2, 64);
-    int box_h    = std::min(render_height_ - 2, 10);
+    int box_w    = 54;
+    int box_h    = 11;
     int left_col = center_col - box_w / 2;
     int top_row  = center_row - box_h / 2;
 
@@ -5369,41 +5458,31 @@ void GameEngine::renderThemeInfo() {
     Color lvl_primary = themePrimary(theme_idx, 0.0);
     Color lvl_accent  = themeAccent(theme_idx, 0.0);
 
-    drawTitleBorderBox(top_row, left_col, box_w, box_h, " THEME INFO ", lvl_accent, lvl_primary, {0, 0, 0});
+    drawTitleBorderBox(top_row, left_col, box_w, box_h, " " + std::string(I18n::t("theme_info.title")) + " ", lvl_accent, lvl_primary, {0, 0, 0});
 
-    struct ThemeDetail {
-        std::vector<std::string> mechanics;
-        std::string hazard;
-    };
-
-    const std::array<ThemeDetail, 11> kThemeMechanics = {{
-        /* 0: Classic */   {{"Standard arcade pacing and balanced ghost AI", "Continuous dot chain multiplier scoring"}, "Tight corridor choke points"},
-        /* 1: Cyan */      {{"Speed Surge: Pac-Man moves 20% faster", "Acid Trails: Toxic floor residue in wake"}, "Tight corridor choke points"},
-        /* 2: Green */     {{"Warp Stun: Side tunnel warps stun ghosts", "Dot Bounty: Extra points for dot streaks"}, "High-speed ghost tunnel tracking"},
-        /* 3: Pink */      {{"Ember Shield: Complete thermal floor immunity", "Magma Multiplier: Double points on molten tiles"}, "Lava Tiles: Floor tiles ignite periodically"},
-        /* 4: Red */       {{"Dash Ability: Press [SPACE] to burst forward", "Fury Combos: Rapid ghost chains score 4x points"}, "Aggressive pursuit algorithms"},
-        /* 5: Violet */    {{"Blitz Bounty: Rapid pellet eating frenzy", "Arcane Harvest: Distant dots pull to Pac-Man"}, "Unstable teleportation spikes"},
-        /* 6: Ice */       {{"Permafrost: Ghost freeze duration extended", "Chilled Aura: Ghosts move slower near Pac-Man"}, "Icy Friction: Inertial turning slide"},
-        /* 7: Amber */     {{"Molten Shield: Invulnerability on bonus fruits", "Golden Multiplier: 4x points for eating ghosts"}, "Persistent double-speed ghost frenzy"},
-        /* 8: Rainbow */   {{"Prismatic Spectrum: Dynamic multi-hue frenzy", "Continuous dot chain multiplier scoring"}, "Chromatic ghost acceleration"},
-        /* 9: Glitch */    {{"Chaos Luck: Randomized surprise powerups", "Binary Warp: Unpredictable tunnel warps"}, "Flickering wall corruption noise"},
-        /* 10: PacTerm+ */ {{"Composite Master Theme: Combines all buffs", "Prismatic Scoring: Permanent 1.5x score bonus"}, "Apex master ghost difficulty curve"},
-    }};
-
-    const auto& cur = kThemeMechanics[theme_idx];
     int cur_y       = top_row + 2;
     int detail_x    = left_col + 3;
+    size_t max_content_w = (box_w > 7) ? static_cast<size_t>(box_w - 7) : 0;
 
     std::string theme_name{kThemeNames[theme_idx]};
-    drawString(cur_y++, detail_x, "Active Level: " + std::to_string(level_) + "   |   Theme: " + theme_name, lvl_primary, {0, 0, 0}, true);
+    std::string header_line = I18n::format("hud.level", level_) + "| " + std::string(I18n::t("theme_info.theme")) + theme_name;
+    drawString(cur_y++, detail_x, truncateText(header_line, (box_w > 5) ? static_cast<size_t>(box_w - 5) : 0), lvl_primary, {0, 0, 0}, true);
     cur_y++;
 
-    drawString(cur_y++, detail_x, "Active Mechanics:", lvl_primary, {0, 0, 0}, true);
-    for (const auto& mech : cur.mechanics) {
-        drawString(cur_y++, detail_x + 2, "• " + mech, {220, 240, 255}, {0, 0, 0}, false);
-    }
+    drawString(cur_y++, detail_x, std::string(I18n::t("theme_info.active_mechanics")), lvl_primary, {0, 0, 0}, true);
 
-    if (!cur.hazard.empty()) {
-        drawString(cur_y++, detail_x + 2, "• Hazard: " + cur.hazard, {255, 140, 140}, {0, 0, 0}, false);
+    std::string m1 = std::string(I18n::t("theme_info.t" + std::to_string(theme_idx) + "_m1"));
+    std::string m2 = std::string(I18n::t("theme_info.t" + std::to_string(theme_idx) + "_m2"));
+    std::string hz = std::string(I18n::t("theme_info.t" + std::to_string(theme_idx) + "_hz"));
+
+    if (!m1.empty()) {
+        drawString(cur_y++, detail_x + 2, truncateText("• " + m1, max_content_w), {220, 240, 255}, {0, 0, 0}, false);
+    }
+    if (!m2.empty()) {
+        drawString(cur_y++, detail_x + 2, truncateText("• " + m2, max_content_w), {220, 240, 255}, {0, 0, 0}, false);
+    }
+    if (!hz.empty()) {
+        std::string hz_prefix = std::string(I18n::t("theme_info.hazard_prefix"));
+        drawString(cur_y++, detail_x + 2, truncateText(hz_prefix + hz, max_content_w), {255, 140, 140}, {0, 0, 0}, false);
     }
 }

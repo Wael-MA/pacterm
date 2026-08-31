@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++23 -Wall -Wextra -Wpedantic -Werror -Isrc -O2
 
-SRC = src/main.cpp src/GameEngine.cpp
+SRC = src/main.cpp src/GameEngine.cpp src/I18n.cpp
 OBJ = $(SRC:.cpp=.o)
 TARGET = pacterm
 

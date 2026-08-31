@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.4.0] - 2026-08-31
+
+### Added
+- **Native Multilingual Support (7 Languages)**:
+  - Built-in internationalization system supporting **English**, **Arabiya** (using Latin/Franco transliteration for seamless rendering across all terminal emulators without RTL shaping issues), **French**, **Spanish**, **German**, **Italian**, and **Japanese**.
+  - Automatic language detection on startup from system environment variables (`LC_ALL`, `LC_MESSAGES`, `LANG`), with instant runtime switching directly in the Settings menu.
+  - Safe, modern C++23 string formatting with `I18n::t(...)` and `I18n::format(...)` backed by `std::vformat`.
+- **Responsive TUI Layout & Smart Text Fitting**:
+  - Container and border systems now dynamically adapt to any terminal window size without broken border corners or awkward line wraps.
+  - Smart text fitting with smooth marquee scrolling for focused menu options, and clean ellipsis truncation for inactive elements.
+  - Accurate Unicode visual column width calculation (`displayWidth`) handling multi-byte UTF-8 sequences, wide CJK / Japanese characters, and Nerd Fonts glyphs without text clipping.
+- **Theme Info & Stage Guide in Pause Menu**:
+  - Fully localized guide accessible anytime during gameplay (`P` or `ESC` -> *Theme Info & Guide*), displaying level mechanics, stage hazards, and active theme palettes.
+
+### Improved & Fixed
+- **Settings Screen Layout & Column Alignment**:
+  - Dynamically aligns all setting labels, colons (`:`), and value selectors into clean vertical columns across all languages and display widths.
+  - Polished container height and padding for a cleaner look.
+- **PacTerm+ Theme & Palette Polishing**:
+  - Maintained authentic white and grey text highlights across all menus and dialogs when the PacTerm+ theme is active.
+  - Preserved authentic per-level dot and pellet colors, keeping the gameplay visually clear and responsive.
+  - Cleaned up Stats screen labels to remain crisp and neutral grey while values stay bright white.
+  - Fixed theme cycling in Settings and Dev menus so PacTerm+ (theme #10) cycles smoothly once unlocked.
+- **Terminal Session Safety & Cleanup**:
+  - Unconditionally restores cursor visibility, disables mouse reporting, clears SGR attributes, and resets terminal `termios` flags on exit and upon receiving POSIX signals (`SIGINT`, `SIGTERM`, `SIGSEGV`, etc.).
+- **Rendering & Engine Performance**:
+  - Enhanced double-buffering and output batching with reserved string buffers to eliminate allocations during gameplay frames.
+  - Cleaned entity and particle management with `std::erase_if` for zero-allocation tick loops.
+
+---
+
 ## [v1.3.9] - 2026-08-25
 
 ### Added

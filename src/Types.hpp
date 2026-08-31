@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.9
+// pacterm v1.4.0
 #pragma once
 
 #include <cstdint>
@@ -144,7 +144,7 @@ namespace Config {
 
     inline constexpr int INITIAL_LIVES = 3;
 
-    inline constexpr const char* PACTERM_VERSION = "1.3.9";
+    inline constexpr const char* PACTERM_VERSION = "1.4.0";
 
     inline constexpr int THEME_COUNT        = 11;
     inline constexpr int GLITCH_THEME       = 9;

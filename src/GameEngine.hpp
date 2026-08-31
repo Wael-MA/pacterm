@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Wael (https://wael.work.gd)
-// pacterm v1.3.9
+// pacterm v1.4.0
 #pragma once
 
 #include "Types.hpp"
 #include "Pacman.hpp"
 #include "Ghost.hpp"
+#include "I18n.hpp"
 #include <array>
 #include <cstddef>
 #include <random>
@@ -187,6 +188,7 @@ private:
     static size_t utf8SequenceLength(unsigned char c) noexcept;
     size_t glyphCount(std::string_view text) const noexcept;
     size_t displayWidth(std::string_view text) const noexcept;
+    std::string truncateText(std::string_view text, size_t max_width) const;
     void drawString(int row, int col, std::string_view text, Color fg, Color bg = {0, 0, 0}, bool bold = false);
     void drawGradientString(int row, int col, std::string_view text, Color start_fg, Color end_fg, Color bg = {0, 0, 0});
     void drawBox(int row, int col, int w, int h, Color fg, Color bg = {0, 0, 0});

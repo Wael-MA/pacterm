@@ -1,163 +1,195 @@
-# PacTerm - Terminal Pac-Man v1.3.9
+# PacTerm - Terminal Pac-Man v1.4.0
 
-A full-featured terminal Pac-Man game written in modern C++23. Navigate mazes, eat pellets, outsmart ghosts, trigger powerups, and climb high scores directly in your terminal.
+A fast, responsive, and feature-packed Pac-Man game built from the ground up for modern terminals in clean C++23. 
+
+Whether you are looking for authentic arcade ghost pathfinding, 30 handcrafted levels with unique stage mechanics, vibrant TrueColor themes, or full multilingual support right in your terminal window, PacTerm brings the arcade classic to life in your shell.
 
 - **Website**: [https://wael.work.gd/pacterm](https://wael.work.gd/pacterm)
+- **Author**: Wael Amrani Zerrifi
 
-## Features
+---
 
-- **30 Handcrafted Levels**: Progressive level layout system featuring unique maze designs, custom color palettes, and escalating difficulty.
-- **Dynamic Fruit Powerups**: Fruits spawn at dot milestones (70 and 170 dots remaining) on verified reachable tiles, providing 8 distinct powerups (Speed Boost, Ghost Freeze, Pellet Magnet, Energy Shield, Double Bounty, Tractor Repel, Ghost Panic, and Extra Life).
-- **Theme Info & Level Guide**: Accessible directly from the Pause menu (`P` or `ESC` -> `Theme Info & Guide`), detailing active mechanics, hazards, and dual-tone gradient palettes.
-- **Classic Ghost AI**: Authentic chase, scatter, and frightened behavior modes with distinct personalities for Blinky, Pinky, Inky, and Clyde.
-- **Level Selector**: Browse and launch unlocked levels directly from the menu with custom split visuals for glitch zones.
-- **PACTERM Letter Hunt**: Collect the sequential letters (`P-A-C-T-E-R-M`) across levels to unlock the composite **PacTerm+** theme.
-- **Fever Time & Multipliers**: Chain 4 ghosts on a single power pellet to trigger Fever 2x score mode with particle trails.
-- **Persistent High Scores & Stats**: Local tracking of games played, dots eaten, ghosts defeated, deaths, and playtime.
-- **Sound Effects**: Procedurally generated audio effects supporting `paplay`, `pw-play`, `mpg123`, and `mpv` (toggleable with `M`).
-- **Flexible Controls & TUI**: Smooth keyboard controls (WASD, ZQSD, Arrow, and Vim keys), in-game key rebinding, full mouse navigation, and clean ASCII/Nerd Font rendering.
+## Highlights & Features
 
-## Themes
+- **30 Handcrafted Levels**: Progressive maze layouts with escalating difficulty, custom color palettes, and level-specific stage hazards.
+- **Multilingual Support (7 Languages)**: Native support for English, Arabiya (Latin script for broad terminal compatibility), French, Spanish, German, Italian, and Japanese with auto-detection and on-the-fly switching.
+- **Responsive Terminal UI**: Automatically adapts to your terminal dimensions with double-line border boxes, marquee-scrolling for long option names, and clean column alignments.
+- **Authentic Ghost AI**: Faithful reproduction of original arcade behavior—distinct personality targets for Blinky (shadow/chase), Pinky (ambush), Inky (flank), and Clyde (shy/wander) across Chase, Scatter, and Frightened modes.
+- **8 Dynamic Fruit Powerups**: Milestone fruit spawns on reachable tiles that reward unique perks: Speed Boosts, Ghost Freezes, Pellet Magnets, Energy Shields, Double Bounty multipliers, Tractor Repels, Ghost Panics, and Extra Lives.
+- **In-Game Theme & Mechanic Guide**: Hit `P` or `ESC` during a game and open the **Theme Info & Guide** to see active mechanics, hazards, and buffs for your current stage.
+- **PACTERM Letter Hunt**: Discover and collect all seven letters (`P-A-C-T-E-R-M`) scattered across the stages to unlock the ultimate **PacTerm+** theme.
+- **Fever Mode**: Eat all four ghosts on a single power pellet to trigger a 6-second high-energy 2x scoring frenzy.
+- **Persistent Local Stats**: High scores, total dots eaten, ghost combos, playtime, and settings are saved automatically to `~/.pacterm/pacterm.cache`.
+- **Audio Effects**: Built-in sound effect synthesis supporting `paplay`, `pw-play`, `mpg123`, and `mpv` (mute anytime with `M`).
+- **Full Input Customization**: Smooth keyboard navigation (WASD, ZQSD, Arrow keys, Vim `HJKL`), interactive mouse click support, and in-game key remapping.
 
-Each theme restyles menus, borders, the HUD, and Pac-Man. Themes are dual-color palettes: a **primary** color for Pac-Man, titles, and score text, with a complementary **accent** color for walls, dots, and borders.
+---
 
-| Theme | Unlocked At | Description |
-|-------|-------------|-------------|
-| **Classic** | Default | Golden-yellow primary with cyan accents on borders, walls, and dots. |
-| **Cyan** | Level 5 | Bright cyan primary with coral-red accents. |
-| **Green** | Level 9 | Emerald green primary with magenta accents. |
-| **Pink** | Level 13 | Rose pink primary with mint-green accents. |
-| **Red** | Level 17 | Crimson red primary with teal accents. |
-| **Violet** | Level 21 | Violet primary with warm golden accents. |
-| **Ice** | Level 24 | Ice-blue primary with deep ocean accents. |
-| **Amber** | Level 27 | Amber gold primary with indigo accents. |
-| **Rainbow** | Redeem | Dynamic multi-hue spectrum cycling across the color wheel. |
-| **Glitch** | Level 30 | Corrupted chromatic RGB shift with inverted channel highlights. |
-| **PacTerm+** | All 7 Letters | Composite theme blending all palettes into a unified master style. |
+## Themes & Visuals
+
+PacTerm comes with 11 custom visual themes. Each theme changes the primary palette for Pac-Man and UI titles, paired with a matching accent color for walls, dots, and borders.
+
+| Theme | How to Unlock | Description |
+|---|---|---|
+| **Classic** | Default | Iconic golden-yellow Pac-Man with crisp cyan maze walls and dots. |
+| **Cyan** | Level 5 | Electric cyan palette with warm coral-red accents. |
+| **Green** | Level 9 | Emerald green tone paired with vivid magenta accents. |
+| **Pink** | Level 13 | Neon rose pink with mint-green accents. |
+| **Red** | Level 17 | Fiery crimson red with cool teal accents. |
+| **Violet** | Level 21 | Deep violet with glowing golden accents. |
+| **Ice** | Level 24 | Frosty ice-blue with deep oceanic accents. |
+| **Amber** | Level 27 | Warm amber gold with rich indigo accents. |
+| **Rainbow** | Redeem code (`RAINBOW`) | Dynamic chromatic spectrum cycling across the full color wheel. |
+| **Glitch** | Level 30 | Chromatic RGB phase shift with corrupted digital scanline aesthetics. |
+| **PacTerm+** | Collect all 7 Letters | Composite master theme featuring dynamic cyber gradients and buffs. |
+
+---
 
 ## Installation
 
 ### Arch Linux (AUR)
 
+If you're on Arch Linux or an Arch-based distro, you can install PacTerm directly from the AUR:
+
 ```bash
 yay -S pacterm
 ```
 
-### From Source
+### Building From Source
 
 #### Prerequisites
 
-- C++23 compatible compiler (GCC 14+, Clang 17+, MSVC 19.38+)
+To compile PacTerm, you will need:
+- A C++23 capable compiler (GCC 14+, Clang 17+, or MSVC 19.38+)
 - CMake 3.25+ or GNU Make
-- Terminal with UTF-8 support
+- A terminal with UTF-8 support (e.g., Alacritty, Kitty, WezTerm, Ghostty, GNOME Terminal, Windows Terminal)
 
-Package manager installation:
+Quick install for build dependencies:
 
 ```bash
-# Ubuntu / Debian
+# Debian / Ubuntu / Mint
 sudo apt-get install build-essential cmake
 
-# Fedora
+# Fedora / RHEL
 sudo dnf install gcc-c++ cmake
 
-# Arch Linux
+# Arch Linux / Manjaro
 sudo pacman -S base-devel cmake
 
 # macOS (Homebrew)
 brew install cmake
 ```
 
-#### Build with CMake (Recommended)
+#### Option 1: Build with CMake (Recommended)
 
 ```bash
 mkdir build && cd build
 cmake ..
-make
-sudo make install
+cmake --build . -j$(nproc)
+sudo cmake --install .
 ```
 
-#### Build with Makefile
+#### Option 2: Build with Make
 
 ```bash
-make
+make -j$(nproc)
 sudo make install
 ```
 
-#### Build with Script
+#### Option 3: Quick Build Script
 
 ```bash
 ./build.sh
 ./pacterm
 ```
 
-## Usage
+---
+
+## Usage & CLI Options
+
+Run the game directly from your terminal:
 
 ```bash
-# Run the game
-./pacterm
+# Start PacTerm
+pacterm
 
-# Install to ~/.local/bin
+# Install to ~/.local/bin (no root required)
 ./pacterm --install
 
-# Uninstall from ~/.local/bin
+# Remove from ~/.local/bin
 ./pacterm --delete
 
-# Print version
+# Print version and build info
 ./pacterm --version
 ```
 
 ### Default Controls
 
 | Key | Action |
-|-----|--------|
+|---|---|
 | `WASD` / `ZQSD` / `Arrow Keys` / `HJKL` | Move Pac-Man |
-| `P` / `ESC` | Pause / Resume / Back |
-| `M` | Toggle Audio Mute |
-| `SPACE` | Dash Burst (Levels 17-19) |
+| `P` or `ESC` | Pause / Open In-Game Menu / Back |
+| `M` | Toggle sound effects on/off |
+| `SPACE` | Activate Dash Burst (Levels 17–19) |
+| `Left Click` | Select menu options, levels, and settings buttons |
 
-*Key bindings can be remapped at any time under **Settings > Configure Keys**.*
+> [!TIP]
+> You can easily remap any gameplay control in the **Settings > Configure Keys** menu.
 
-## Scoring & Rules
+---
 
-- **Dots**: 10 points
-- **Power Pellets**: 50 points (triggers frightened ghost vulnerability)
-- **Ghost Multiplier**: 200 -> 400 -> 800 -> 1600 points per consecutive ghost eaten during a power pellet
-- **Fever Frenzy**: Eating all 4 ghosts on one power pellet triggers 6 seconds of 2x Fever scoring
-- **Fruit Bonuses**: 100 to 5,000 points based on fruit rarity
-- **Level Performance Rating**: Cleared levels are rated 0 to 10 based on par time and lives preserved, awarding up to 10,000 bonus points
+## Scoring System
 
-## Configuration & Data
+- **Dot**: 10 points
+- **Power Pellet**: 50 points (turns ghosts blue and vulnerable)
+- **Ghost Chain**: 200 → 400 → 800 → 1600 points for consecutive ghosts eaten on a single power pellet
+- **Fever Frenzy**: 6 seconds of double points (2x) when eating all 4 ghosts on one pellet
+- **Bonus Fruits**: 100 to 5,000 points depending on the fruit rarity
+- **Stage Clear Rating**: Cleared levels are rated up to 10 points based on speed and lives kept, awarding up to 10,000 bonus points
 
-Player configuration, stats, and high scores are saved locally at:
+---
 
-- `~/.pacterm/pacterm.cache` (settings, key bindings, scores, and stats)
-- `~/.pacterm/sounds/` (synthesized WAV sound bank)
+## Save Data & Cache
+
+PacTerm stores configuration files, unlock progress, and sound banks in your user directory:
+
+- `~/.pacterm/pacterm.cache` (settings, key bindings, scores, and statistics)
+- `~/.pacterm/sounds/` (synthesized WAV audio assets)
+
+---
 
 ## Project Structure
 
 ```
 pacterm/
-├── CMakeLists.txt      # CMake build configuration
-├── Makefile            # Makefile build configuration
-├── build.sh            # Direct compilation script
-├── LICENSE             # GNU GPL-3.0 license
-├── README.md           # Documentation
-├── CHANGELOG.md        # Release changelog
+├── CMakeLists.txt      # CMake build definitions
+├── Makefile            # Standalone Makefile build
+├── build.sh            # Quick compile helper
+├── LICENSE             # GNU GPL-3.0 License
+├── README.md           # Project documentation
+├── CHANGELOG.md        # Release version history
 ├── CONTRIBUTING.md     # Contribution guidelines
+├── CODE_OF_CONDUCT.md  # Community standards
 ├── src/
-│   ├── main.cpp        # Application entry point and CLI dispatch
-│   ├── GameEngine.cpp  # Core engine, rendering, AI, and game loop
-│   ├── GameEngine.hpp  # Engine declarations and state structures
-│   ├── Pacman.hpp      # Pac-Man entity state and movement
-│   ├── Ghost.hpp       # Ghost entity AI, modes, and behavior
-│   └── Types.hpp       # Coordinates, colors, tiles, and map templates
+│   ├── main.cpp        # Entry point and CLI argument parser
+│   ├── GameEngine.cpp  # Core engine, rendering loops, game state, and UI
+│   ├── GameEngine.hpp  # Engine declarations and member definitions
+│   ├── I18n.cpp        # Localization dictionaries and formatter implementations
+│   ├── I18n.hpp        # Internationalization interface and string lookup
+│   ├── Pacman.hpp      # Pac-Man player state, speed, and movement logic
+│   ├── Ghost.hpp       # Ghost entity AI, pathfinding, and behavioral modes
+│   └── Types.hpp       # Coordinates, colors, tiles, and 30 maze layouts
 └── sounds/             # Sound bank directory
 ```
 
+---
+
 ## Contributing
 
-Contributions, bug reports, and suggestions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for details on code style, commit standards, and workflow.
+Feedback, bug reports, and pull requests are always welcome! Check out [CONTRIBUTING.md](CONTRIBUTING.md) for tips on setting up your dev environment, coding style, and submitting changes.
+
+---
 
 ## License
 
-PacTerm is free software licensed under the **GNU General Public License v3.0**. See the [LICENSE](LICENSE) file for details.
+PacTerm is open-source software licensed under the **GNU General Public License v3.0** (GPL-3.0-or-later). See [LICENSE](LICENSE) for the full text.

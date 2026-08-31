@@ -161,7 +161,7 @@ clang-format --dry-run --Werror src/*.cpp src/*.hpp
 
 # Static analysis (requires CMake export of compile commands)
 cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-clang-tidy src/*.cpp -p build -- -std=c++20 -Isrc
+clang-tidy src/*.cpp -p build -- -std=c++23 -Isrc
 ```
 
 ## How Can I Contribute?
